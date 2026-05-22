@@ -1,0 +1,4 @@
+LIBRARY kshook
+
+EXPORTS
+    DllMain

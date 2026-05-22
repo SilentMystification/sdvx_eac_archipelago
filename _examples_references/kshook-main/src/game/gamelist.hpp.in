@@ -1,0 +1,16 @@
+#pragma once
+
+template <class...> struct type_pack {};
+template <class... Ts, class Fn> constexpr auto until(type_pack<Ts...>, Fn&& f)
+	{ (f.template operator()<Ts>() || ...); }
+
+#if _WIN64
+    #include "game/sv6c/game.hpp"
+
+	constexpr auto games = type_pack<
+        kshook::sv6c::game      // SOUND VOLTEX EXCEED GEAR
+	> {};
+#else
+    constexpr auto games = type_pack<
+    > {};
+#endif
