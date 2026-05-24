@@ -58,3 +58,9 @@ void hooks_remove();
 // SDVX_SPINNER_* constants for each unlocked item.  Thread-safe; may be called
 // at any time after hooks_install returns true.
 void hooks_set_input_lock(uint16_t gpio0_allowed, uint16_t gpio1_allowed, uint8_t spinners_allowed);
+
+// ── Level folder lock control ─────────────────────────────────────────────────
+// Bitmask: bit (N-1) = 1 means LEVEL N folder is unlocked (player can enter).
+// Starts at 0 (all locked).  Thread-safe; may be called at any time after
+// hooks_install returns true.
+void hooks_set_level_unlock(uint32_t levels_mask);

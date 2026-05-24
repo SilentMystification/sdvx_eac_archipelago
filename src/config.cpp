@@ -26,7 +26,7 @@ Config Config::load(const std::string& ini_path) {
     c.ap_password = GetIniString("Archipelago", "password", "", p);
     c.ap_game     = GetIniString("Archipelago", "game",     "Sound Voltex", p);
 
-    c.location_base_id = static_cast<int64_t>(GetIniInt("Game", "location_base_id", 8000000, p));
+    c.location_base_id = static_cast<int64_t>(GetIniInt("Game", "location_base_id", 8100000, p));
     c.item_base_id     = static_cast<int64_t>(GetIniInt("Game", "item_base_id",     8000000, p));
     c.goal_clears      = GetIniInt("Game", "goal_clears", 30, p);
 

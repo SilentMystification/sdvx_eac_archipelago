@@ -223,21 +223,30 @@ void APClient::handle_message(const std::string& text) {
             int index = pkt.value("index", 0);
             if (!pkt.contains("items") || !pkt["items"].is_array()) continue;
 
-            // Only process items we haven't seen (index tracks position)
-            if (index > last_item_index_) {
-                std::vector<APItem> items;
-                for (auto& it : pkt["items"]) {
-                    APItem ap_item;
-                    ap_item.item     = it.value("item",     (APItemID)0);
-                    ap_item.location = it.value("location", (APLocationID)0);
-                    ap_item.player   = it.value("player",   0);
-                    ap_item.flags    = it.value("flags",    0);
-                    items.push_back(ap_item);
-                }
-                last_item_index_ = index + (int)items.size();
-                if (on_items_received && !items.empty())
-                    on_items_received(items);
+            // Parse the full packet payload.
+            std::vector<APItem> raw;
+            for (auto& it : pkt["items"]) {
+                APItem ap_item;
+                ap_item.item     = it.value("item",     (APItemID)0);
+                ap_item.location = it.value("location", (APLocationID)0);
+                ap_item.player   = it.value("player",   0);
+                ap_item.flags    = it.value("flags",    0);
+                raw.push_back(ap_item);
             }
+
+            // `index` is the position of raw[0] in the server's full item list.
+            // `last_item_index_` is how many items we have already processed.
+            // Skip items whose server-position is below our watermark; process
+            // the rest.  This correctly handles both incremental delivery and
+            // the full-resend that AP performs on reconnection.
+            int skip = last_item_index_ - index;
+            if (skip < 0) skip = 0;
+            if (skip >= (int)raw.size()) continue;  // nothing new
+
+            std::vector<APItem> fresh(raw.begin() + skip, raw.end());
+            last_item_index_ = index + (int)raw.size();
+            if (on_items_received)
+                on_items_received(fresh);
 
         } else if (cmd == "PrintJSON") {
             if (on_print && pkt.contains("data")) {

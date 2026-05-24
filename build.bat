@@ -41,8 +41,27 @@ if errorlevel 1 goto fail
 "%LIB_EXE%" /nologo /OUT:minhook.lib buffer.obj hook.obj trampoline.obj hde64.obj
 if errorlevel 1 goto fail
 
+:: ---- Compile debug UI -------------------------------------------------------
+echo [2/3] Compiling sdvx_ap_debug (sdvx_ap_debug.exe)...
+
+"%CL_EXE%" /nologo /O2 /W3 /MT /GS /EHsc /std:c++17 /DUNICODE /D_UNICODE ^
+    /I"%MSVC_INC%" ^
+    /I"%SDK_INC%\ucrt" ^
+    /I"%SDK_INC%\shared" ^
+    /I"%SDK_INC%\um" ^
+    "%ROOT%\tools\debug_ui.cpp" ^
+    /Fe"sdvx_ap_debug.exe" ^
+    /link ^
+    /SUBSYSTEM:WINDOWS ^
+    /MACHINE:X64 ^
+    /LIBPATH:"%MSVC_LIB%" ^
+    /LIBPATH:"%SDK_LIB%\ucrt\x64" ^
+    /LIBPATH:"%SDK_LIB%\um\x64" ^
+    kernel32.lib user32.lib gdi32.lib
+if errorlevel 1 goto fail
+
 :: ---- Compile DLL sources ---------------------------------------------------
-echo [2/2] Compiling sdvx_archipelago (version.dll)...
+echo [3/3] Compiling sdvx_archipelago (version.dll)...
 
 "%CL_EXE%" /LD /nologo /O2 /W3 /MT /GS /EHsc /std:c++17 ^
     /I"%ROOT%\src" ^
@@ -69,12 +88,14 @@ if errorlevel 1 goto fail
 
 echo.
 echo === Build SUCCESS ===
-echo Output: %ROOT%\build\version.dll
+echo Outputs: %ROOT%\build\version.dll
+echo          %ROOT%\build\sdvx_ap_debug.exe
 echo.
 echo Install:
-echo   1. Copy build\version.dll  -^>  C:\Games\SOUND VOLTEX EXCEED GEAR\game\modules\
-echo   2. Copy archipelago.ini.example  -^>  same folder, rename to archipelago.ini
-echo   3. Edit archipelago.ini with your server/slot details
+echo   1. Copy build\version.dll       -^>  C:\Games\SOUND VOLTEX EXCEED GEAR\game\modules\
+echo   2. Copy build\sdvx_ap_debug.exe -^>  C:\Games\SOUND VOLTEX EXCEED GEAR\game\modules\
+echo   3. Copy archipelago.ini.example -^>  same folder, rename to archipelago.ini
+echo   4. Edit archipelago.ini with your server/slot details
 echo.
 cd /d "%ROOT%"
 exit /b 0

@@ -18,10 +18,11 @@ password =
 game = Sound Voltex
 
 [Game]
-; Base ID offset for locations and items.
-; location_id = location_base_id + music_id * 10 + difficulty
-; difficulty: 0=NOVICE 1=ADVANCED 2=EXHAUST 3=MAXIMUM/INFINITE
-location_base_id = 8000000
+; Base ID offsets — must match the AP world package exactly.
+; Items occupy  item_base_id + 0..99999     (8000000–8099999)
+; Locations:    location_base_id + music_id * 10 + difficulty
+;   difficulty: 0=NOVICE  1=ADVANCED  2=EXHAUST  3=MAXIMUM/INFINITE
+location_base_id = 8100000
 item_base_id     = 8000000
 
 ; Number of song clears required to reach the goal

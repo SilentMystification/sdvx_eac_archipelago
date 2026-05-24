@@ -21,6 +21,7 @@
 //   0=NOVICE  1=ADVANCED  2=EXHAUST  3=INF/GRAVITY/etc  4=MAXIMUM
 
 #include "hooks.h"
+#include "offsets.h"
 #include "../MinHook/include/MinHook.h"
 #include <windows.h>
 #include <atomic>
@@ -367,6 +368,60 @@ void hooks_set_input_lock(uint16_t gpio0_allowed, uint16_t gpio1_allowed, uint8_
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// GROUP 3 — sv6c.exe folder entry hook (level lock)
+// ════════════════════════════════════════════════════════════════════════════
+//
+// Hooks FUN_1402fdae0 (RVA_FOLDER_ENTER) — the universal "enter folder" function
+// called for ALL folder types via the START-button (bVar6) path in FUN_1402fc540.
+//
+// Signature:  ulonglong FUN_1402fdae0(longlong handler)
+//   handler+0x1C8  →  folder ctx pointer  (FOLDER_HANDLER_CTX)
+//   ctx+0x314      →  uint32_t type_id     (FOLDER_CTX_TYPE_ID)
+//
+// IMPORTANT: FUN_1400f6ad0 (RVA 0x0F6AD0) is NOT the right hook target.
+// It is only called for BLASTER GATE / Dimension folders (those whose
+// ctx+0x20 == &LAB_1400f91f0); LEVEL 1–20 have a different vtable entry there
+// and therefore never reach FUN_1400f6ad0.
+// Confirmed by Ghidra decompilation of FUN_1402fc540 (2026-05-23).
+//
+// To block entry: return 0 early without calling the original.
+// The return value is ignored by all callers, so blocking is silent.
+
+// Bitmask of unlocked levels: bit (N-1) set = LEVEL N is enterable.
+static std::atomic<uint32_t> g_levels_unlocked{0};
+
+using FolderEnterFn = uint64_t(*)(int64_t handler);
+static FolderEnterFn orig_folder_enter = nullptr;
+
+static uint64_t hk_folder_enter(int64_t handler) {
+    // handler+0x1C8 is a pointer to the folder ctx object.
+    int64_t ctx = *reinterpret_cast<const int64_t*>(handler + FOLDER_HANDLER_CTX);
+    if (!ctx) return orig_folder_enter(handler);   // safety: null ctx, pass through
+
+    uint32_t tid = *reinterpret_cast<const uint32_t*>(ctx + FOLDER_CTX_TYPE_ID);
+    diagf("[FOLDER] enter called: type_id=0x%02X", tid);   // DEBUG — remove after verified
+
+    if (tid >= FOLDER_TYPE_LEVEL1 && tid <= FOLDER_TYPE_LEVEL20) {
+        int      level = static_cast<int>(tid - FOLDER_TYPE_LEVEL1) + 1;
+        uint32_t bit   = 1u << (level - 1);
+        if (!(g_levels_unlocked.load(std::memory_order_relaxed) & bit)) {
+            diagf("[FOLDER] Blocked entry to LEVEL %d (type_id=0x%02X, not yet unlocked)",
+                  level, tid);
+            return 0;   // skip original — folder is not entered
+        }
+    }
+    return orig_folder_enter(handler);
+}
+
+void hooks_set_level_unlock(uint32_t levels_mask) {
+    g_levels_unlocked.store(levels_mask, std::memory_order_relaxed);
+    diagf("[FOLDER] Level unlock mask updated: 0x%05X", levels_mask);
+    for (int i = 0; i < 20; ++i)
+        if (levels_mask & (1u << i))
+            diagf("[FOLDER]   + LEVEL %d unlocked", i + 1);
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // Install / remove all hooks
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -417,6 +472,19 @@ bool hooks_install(OnSessionResult cb_session, OnTrackClear cb_clear, OnDiagLog 
 
     // ── Hook sdvxio.dll input functions (optional, non-fatal) ─────────────────
     install_sdvxio_hooks();
+
+    // ── Hook sv6c.exe folder entry function ───────────────────────────────────
+    {
+        uintptr_t base   = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
+        void*     target = reinterpret_cast<void*>(base + RVA_FOLDER_ENTER);
+        if (MH_CreateHook(target,
+                          reinterpret_cast<void*>(&hk_folder_enter),
+                          reinterpret_cast<void**>(&orig_folder_enter)) != MH_OK) {
+            diagf("[HOOK] MH_CreateHook(folder_enter) failed");
+            return false;
+        }
+        diagf("[HOOK] Folder entry hook installed — LEVEL folders locked until AP items arrive");
+    }
 
     // ── Enable all hooks ──────────────────────────────────────────────────────
     if (MH_EnableHook(MH_ALL_HOOKS) != MH_OK) {

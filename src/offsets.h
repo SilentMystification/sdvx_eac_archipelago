@@ -67,3 +67,49 @@ constexpr uintptr_t RESULT_CLEAR_FLAGS   = 0xCC;
 // ---- BM2D property op codes ------------------------------------------------
 constexpr int BM2D_GET_INT_BY_NAME = 0x1012;
 constexpr int BM2D_GET_VEC2        = 0x1008;
+
+// ---- Folder entry functions ------------------------------------------------
+//
+// FUN_1402fdae0 — universal "enter folder" function called for ALL folder types
+// via the START-button (bVar6) code path in FUN_1402fc540.  Receives the outer
+// handler object; the focused folder's ctx is at *(handler+0x1c8), and its
+// type_id is at ctx+0x314.  Returning early (without calling the original)
+// silently blocks folder entry.  Confirmed by Ghidra decompilation (2026-05-23).
+//   ulonglong FUN_1402fdae0(longlong handler)
+constexpr uintptr_t RVA_FOLDER_ENTER   = 0x2FDAE0;
+constexpr ptrdiff_t FOLDER_HANDLER_CTX = 0x1C8;   // *(handler+0x1C8) → folder ctx ptr
+constexpr ptrdiff_t FOLDER_CTX_TYPE_ID = 0x314;   // uint32_t type_id in ctx object
+//
+// FUN_1400f6ad0 — BLASTER GATE / Dimension-only entry gate.  Only called when
+// ctx+0x20 == &LAB_1400f91f0 (Ghidra label for the BLASTER GATE state handler).
+// LEVEL 1–20 folders have a different vtable entry at +0x20 and therefore NEVER
+// reach this function.  Kept for documentation only.
+//   uint64_t FUN_1400f6ad0(int64_t ctx, int32_t param2)
+// constexpr uintptr_t RVA_FOLDER_ENTER_BLASTER = 0x0F6AD0;  // for reference
+
+// ---- Folder vector (song-select screen) ------------------------------------
+//
+// Global triple { uint8_t* data; uint8_t* end; uint8_t* cap; } at this RVA.
+// Lazily initialised the first time the player enters the song-select screen.
+// Heap data pointed to by `data` is an array of 0xb8-byte folder structs.
+//
+// NOTE: Patching bytes in this struct does NOT prevent folder entry and does
+// NOT change the folder's visual appearance at runtime.  The game enforces
+// folder conditions through code in FUN_1400f6ad0, not through struct reads.
+// The constants below are kept for documentation / future reference only.
+//
+// Discovered via Ghidra + Cheat Engine live-memory analysis (2026-05-23).
+constexpr uintptr_t RVA_FOLDER_VEC     = 0xF10BE0;
+
+// Per-entry layout within each 0xb8-byte folder struct (informational only)
+constexpr size_t    FOLDER_STRIDE      = 0xb8;   // struct size
+constexpr size_t    FOLDER_OFF_TYPE_ID = 0x68;   // uint32_t  — folder type id
+// +0x90: uint8 — 0x01 for most folders, 0x00 for some network-gated ones
+// +0x91: uint8 — 0x01 for unconditional folders, 0x00 for BLASTER GATE when
+//                disabled; writing this byte has no observable UI/entry effect
+// +0x92: uint8 — 0x01 across all 48 observed folder structs
+
+// Type IDs for LEVEL 1–20 difficulty folders
+// LEVEL N  →  FOLDER_TYPE_LEVEL1 + (N - 1),  N ∈ [1, 20]
+constexpr uint32_t  FOLDER_TYPE_LEVEL1  = 0x14u; // LEVEL 1  (decimal 20)
+constexpr uint32_t  FOLDER_TYPE_LEVEL20 = 0x27u; // LEVEL 20 (decimal 39)

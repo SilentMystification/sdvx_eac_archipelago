@@ -11,6 +11,13 @@
 #include "hooks.h"
 #include "ap_client.h"
 #include "offsets.h"
+#include "ipc.h"
+
+// ============================================================
+// Forward declarations
+// ============================================================
+static void log(const std::string& msg);  // defined below in Logging section
+static void apply_input_lock();           // defined below in AP event callbacks section
 
 // ============================================================
 // Globals
@@ -27,9 +34,11 @@ static std::ofstream g_log;
 static std::mutex    g_log_mutex;
 
 // ── Input unlock state ────────────────────────────────────────────────────────
-// Input items are encoded as: item_id = item_base_id + INPUT_ITEM_OFFSET + slot
-// Slots 0-6 = BT-A…START (GPIO0 bits), slots 7-8 = Knob L / Knob R.
-static constexpr APItemID INPUT_ITEM_OFFSET = 100000;
+// Input items are encoded as: item_id = item_base_id + slot  (slots 0–8).
+// Slots 0-6 = BT-A…START (GPIO0/1 bits), slots 7-8 = Knob L / Knob R.
+// "Song Clear" filler = item_base_id + 9.
+// Location IDs start at item_base_id + 10 (= base + music_id*10 + diff),
+// so there is no overlap between item IDs and location IDs.
 
 enum InputSlot : int {
     INPUT_BT_A   = 0,
@@ -49,6 +58,94 @@ static std::mutex g_input_mutex;
 static uint16_t   g_gpio0_unlocked   = 0;
 static uint16_t   g_gpio1_unlocked   = 0;
 static uint8_t    g_spinner_unlocked = 0;
+
+// g_total_clears / g_goal_sent declared in the Globals section above.
+
+// ── Level-folder unlock state ─────────────────────────────────────────────────
+// Accumulated bitmask of unlocked levels — only ever ORed into, never cleared.
+// Forwarded to hooks.cpp via hooks_set_level_unlock() where the actual entry
+// gate lives (hook on FUN_1402fdae0 / RVA_FOLDER_ENTER).
+static uint32_t g_levels_unlocked_local = 0u;
+
+// ── IPC (debug UI) state ──────────────────────────────────────────────────────
+static HMODULE  g_hmod_self      = nullptr; // our own DLL module (set in DllMain)
+static HANDLE   g_shm_handle     = nullptr;
+static SdvxApSharedState* g_shm  = nullptr;
+static HANDLE   g_ipc_stop_evt   = nullptr;
+static HANDLE   g_ipc_thread     = nullptr;
+
+// Compute 9-bit inputs bitmask from the current GPIO/spinner masks.
+// Must be called under g_input_mutex.
+static uint16_t compute_inputs_mask() {
+    uint16_t m = 0;
+    if (g_gpio0_unlocked   & SDVX_GPIO0_BT_A)  m |= (1u << INPUT_BT_A);
+    if (g_gpio0_unlocked   & SDVX_GPIO0_BT_B)  m |= (1u << INPUT_BT_B);
+    if (g_gpio0_unlocked   & SDVX_GPIO0_BT_C)  m |= (1u << INPUT_BT_C);
+    if (g_gpio1_unlocked   & SDVX_GPIO1_BT_D)  m |= (1u << INPUT_BT_D);
+    if (g_gpio1_unlocked   & SDVX_GPIO1_FX_L)  m |= (1u << INPUT_FX_L);
+    if (g_gpio1_unlocked   & SDVX_GPIO1_FX_R)  m |= (1u << INPUT_FX_R);
+    if (g_gpio0_unlocked   & SDVX_GPIO0_START)  m |= (1u << INPUT_START);
+    if (g_spinner_unlocked & SDVX_SPINNER_L)    m |= (1u << INPUT_KNOB_L);
+    if (g_spinner_unlocked & SDVX_SPINNER_R)    m |= (1u << INPUT_KNOB_R);
+    return m;
+}
+
+// Apply a 9-bit inputs bitmask to the GPIO/spinner masks.
+// Replaces (does not OR) the current masks.  Must be called under g_input_mutex.
+static void apply_inputs_mask(uint16_t m) {
+    g_gpio0_unlocked   = 0;
+    g_gpio1_unlocked   = 0;
+    g_spinner_unlocked = 0;
+    if (m & (1u << INPUT_BT_A))   g_gpio0_unlocked   |= SDVX_GPIO0_BT_A;
+    if (m & (1u << INPUT_BT_B))   g_gpio0_unlocked   |= SDVX_GPIO0_BT_B;
+    if (m & (1u << INPUT_BT_C))   g_gpio0_unlocked   |= SDVX_GPIO0_BT_C;
+    if (m & (1u << INPUT_BT_D))   g_gpio1_unlocked   |= SDVX_GPIO1_BT_D;
+    if (m & (1u << INPUT_FX_L))   g_gpio1_unlocked   |= SDVX_GPIO1_FX_L;
+    if (m & (1u << INPUT_FX_R))   g_gpio1_unlocked   |= SDVX_GPIO1_FX_R;
+    if (m & (1u << INPUT_START))  g_gpio0_unlocked   |= SDVX_GPIO0_START;
+    if (m & (1u << INPUT_KNOB_L)) g_spinner_unlocked |= SDVX_SPINNER_L;
+    if (m & (1u << INPUT_KNOB_R)) g_spinner_unlocked |= SDVX_SPINNER_R;
+}
+
+// Write current DLL state to shared memory and bump seq_dll so the UI updates.
+// Safe to call with or without the IPC mapping open.
+// Must be called under g_input_mutex.
+static void ipc_write_dll_state() {
+    if (!g_shm) return;
+    g_shm->inputs = compute_inputs_mask();
+    g_shm->levels = g_levels_unlocked_local;
+    InterlockedIncrement(reinterpret_cast<volatile LONG*>(&g_shm->seq_dll));
+}
+
+// ── IPC poll thread ───────────────────────────────────────────────────────────
+// Runs at 100 ms intervals.  When the UI increments seq_ui, reads the new
+// inputs/levels masks and applies them as an override (replaces AP-derived state).
+static DWORD WINAPI ipc_poll_thread(LPVOID) {
+    uint32_t last_seq_ui = 0;
+    while (WaitForSingleObject(g_ipc_stop_evt, 100) == WAIT_TIMEOUT) {
+        if (!g_shm) continue;
+        uint32_t seq = g_shm->seq_ui;
+        if (seq == last_seq_ui) continue;
+        last_seq_ui = seq;
+
+        uint16_t new_inputs = g_shm->inputs;
+        uint32_t new_levels = g_shm->levels;
+
+        {
+            std::lock_guard<std::mutex> lk(g_input_mutex);
+            apply_inputs_mask(new_inputs);
+            g_levels_unlocked_local = new_levels;
+            apply_input_lock();
+            // (do NOT call ipc_write_dll_state here — we just read from the UI)
+        }
+        hooks_set_level_unlock(new_levels);
+        log("[IPC] UI override applied: inputs=0x" +
+            [&]{ char b[8]; snprintf(b,sizeof(b),"%03X",new_inputs); return std::string(b); }() +
+            " levels=0x" +
+            [&]{ char b[10]; snprintf(b,sizeof(b),"%05X",new_levels); return std::string(b); }());
+    }
+    return 0;
+}
 
 // ============================================================
 // Logging
@@ -128,10 +225,12 @@ static void on_session_result(const TrackResult tracks[], int count) {
 // AP event callbacks
 // ============================================================
 
-// Helper — recompute the input lock from the accumulated unlock masks and push
-// it to hooks.cpp.  Call under g_input_mutex or after updating the masks.
+// Helper — recompute the input lock from the accumulated unlock masks, push it
+// to hooks.cpp, and mirror the new state to shared memory so the debug UI
+// reflects it.  Must be called under g_input_mutex.
 static void apply_input_lock() {
     hooks_set_input_lock(g_gpio0_unlocked, g_gpio1_unlocked, g_spinner_unlocked);
+    ipc_write_dll_state();
 }
 
 static void on_ap_items(const std::vector<APItem>& items) {
@@ -142,17 +241,16 @@ static void on_ap_items(const std::vector<APItem>& items) {
         APItemID rel = it.item - g_cfg.item_base_id;
         if (rel < 0) continue;
 
-        // ── Input unlock items ────────────────────────────────────────────────
-        APItemID input_rel = it.item - (g_cfg.item_base_id + INPUT_ITEM_OFFSET);
-        if (input_rel >= 0 && input_rel < INPUT_COUNT) {
+        // ── Input unlock items (item_base_id + 0..8) ─────────────────────────
+        if (rel < INPUT_COUNT) {
             const char* names[INPUT_COUNT] = {
                 "BT-A","BT-B","BT-C","BT-D","FX-L","FX-R","START",
                 "Knob LEFT","Knob RIGHT"
             };
-            log("[AP] Input unlocked: " + std::string(names[input_rel]) +
+            log("[AP] Input unlocked: " + std::string(names[rel]) +
                 " (item_id=" + std::to_string(it.item) + ")");
 
-            switch (static_cast<InputSlot>(input_rel)) {
+            switch (static_cast<InputSlot>(rel)) {
             case INPUT_BT_A:   g_gpio0_unlocked   |= SDVX_GPIO0_BT_A;  input_changed = true; break;
             case INPUT_BT_B:   g_gpio0_unlocked   |= SDVX_GPIO0_BT_B;  input_changed = true; break;
             case INPUT_BT_C:   g_gpio0_unlocked   |= SDVX_GPIO0_BT_C;  input_changed = true; break;
@@ -164,17 +262,48 @@ static void on_ap_items(const std::vector<APItem>& items) {
             case INPUT_KNOB_R: g_spinner_unlocked |= SDVX_SPINNER_R;   input_changed = true; break;
             default: break;
             }
-            continue; // not a song item
+            continue;
         }
 
-        // ── Song unlock items ─────────────────────────────────────────────────
-        uint32_t music_id   = (uint32_t)(rel / 10);
-        uint32_t difficulty = (uint32_t)(rel % 10);
-        log("[AP] Received song item: music_id=" + std::to_string(music_id) +
-            " diff=" + std::to_string(difficulty) +
-            " (item_id=" + std::to_string(it.item) + ")");
+        // ── Song Clear filler (item_base_id + 9) ─────────────────────────────
+        // The AP world places these as the goal-counter items.  Count them and
+        // fire a goal StatusUpdate once the threshold is reached.
+        if (rel == INPUT_COUNT) {
+            ++g_total_clears;
+            log("[AP] Song Clear received (" +
+                std::to_string(g_total_clears) + " / " +
+                std::to_string(g_cfg.goal_clears) + ")");
+            if (!g_goal_sent && g_total_clears >= g_cfg.goal_clears) {
+                g_goal_sent = true;
+                g_ap.send_goal();
+                log("[AP] Goal reached!");
+            }
+            continue;
+        }
 
-        // TODO: unlock song in game's unlock table (requires RE of unlock array)
+        // ── Level-folder unlock items (item_base_id + 10..29) ────────────────
+        // rel 10 = LEVEL 1, rel 11 = LEVEL 2, ... rel 29 = LEVEL 20.
+        // Each item unblocks entry to the matching LEVEL folder via the hook on
+        // FUN_1400f6ad0 (RVA_FOLDER_ENTER) installed in hooks.cpp.
+        constexpr int LEVEL_ITEM_BASE  = INPUT_COUNT + 1;   // = 10
+        constexpr int LEVEL_ITEM_COUNT = 20;                // one per level
+        int level_rel = static_cast<int>(rel) - LEVEL_ITEM_BASE;
+        if (level_rel >= 0 && level_rel < LEVEL_ITEM_COUNT) {
+            int      level = level_rel + 1;
+            uint32_t bit   = 1u << level_rel;
+            if (!(g_levels_unlocked_local & bit)) {
+                g_levels_unlocked_local |= bit;
+                log("[AP] Level unlock: LEVEL " + std::to_string(level) +
+                    " (item_id=" + std::to_string(it.item) + ")");
+                hooks_set_level_unlock(g_levels_unlocked_local);
+                ipc_write_dll_state();
+            }
+            continue;
+        }
+
+        // ── Unknown/future items ──────────────────────────────────────────────
+        log("[AP] Received unhandled item: rel=" + std::to_string(rel) +
+            " (item_id=" + std::to_string(it.item) + ")");
     }
 
     if (input_changed)
@@ -244,7 +373,53 @@ static DWORD WINAPI init_thread(LPVOID) {
         log("ERROR: Failed to install game hooks");
         return 0;
     }
-    log("Hooks installed OK — inputs locked until AP items arrive");
+    log("Hooks installed OK — inputs locked, all LEVEL folders locked until AP items arrive");
+
+    // ── Debug UI: create shared memory and launch sdvx_ap_debug.exe ──────────
+    {
+        g_shm_handle = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr,
+                                          PAGE_READWRITE, 0, SDVX_AP_IPC_SIZE,
+                                          SDVX_AP_SHM_NAME);
+        if (g_shm_handle) {
+            g_shm = reinterpret_cast<SdvxApSharedState*>(
+                MapViewOfFile(g_shm_handle, FILE_MAP_ALL_ACCESS, 0, 0, SDVX_AP_IPC_SIZE));
+            if (g_shm) {
+                ZeroMemory(g_shm, SDVX_AP_IPC_SIZE);
+                g_shm->magic = SDVX_AP_IPC_MAGIC;
+                log("[IPC] Shared memory created: Local\\SDVX_AP_IPC_v1");
+            }
+        }
+        if (!g_shm) log("[IPC] WARNING: Failed to create shared memory");
+
+        // Start poll thread (runs even if IPC failed — it'll just do nothing)
+        g_ipc_stop_evt = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+        if (g_ipc_stop_evt)
+            g_ipc_thread = CreateThread(nullptr, 0, ipc_poll_thread, nullptr, 0, nullptr);
+
+        // Launch the debug UI from the same directory as our DLL
+        if (g_hmod_self) {
+            wchar_t dll_path[MAX_PATH] = {};
+            GetModuleFileNameW(g_hmod_self, dll_path, MAX_PATH);
+            // Replace filename with sdvx_ap_debug.exe
+            wchar_t* last_sep = wcsrchr(dll_path, L'\\');
+            if (!last_sep) last_sep = wcsrchr(dll_path, L'/');
+            if (last_sep) {
+                wcscpy_s(last_sep + 1, MAX_PATH - (last_sep - dll_path + 1),
+                         L"sdvx_ap_debug.exe");
+                STARTUPINFOW si = {};
+                si.cb = sizeof(si);
+                PROCESS_INFORMATION pi = {};
+                if (CreateProcessW(dll_path, nullptr, nullptr, nullptr,
+                                   FALSE, 0, nullptr, nullptr, &si, &pi)) {
+                    CloseHandle(pi.hThread);
+                    CloseHandle(pi.hProcess);
+                    log("[IPC] Launched sdvx_ap_debug.exe");
+                } else {
+                    log("[IPC] sdvx_ap_debug.exe not found or failed to launch (optional)");
+                }
+            }
+        }
+    }
 
     // Wire AP client callbacks
     g_ap.on_items_received = on_ap_items;
@@ -371,6 +546,7 @@ BOOL  WINAPI ver_fwd_VerQueryValueW(LPCVOID blk, LPCWSTR sub, LPVOID* buf, PUINT
 // ============================================================
 BOOL WINAPI DllMain(HINSTANCE hInst, DWORD reason, LPVOID) {
     if (reason == DLL_PROCESS_ATTACH) {
+        g_hmod_self = hInst;
         DisableThreadLibraryCalls(hInst);
         load_real_version();
 
@@ -388,6 +564,21 @@ BOOL WINAPI DllMain(HINSTANCE hInst, DWORD reason, LPVOID) {
     else if (reason == DLL_PROCESS_DETACH) {
         g_ap.stop();
         hooks_remove();
+
+        // Tear down IPC
+        if (g_ipc_stop_evt) {
+            SetEvent(g_ipc_stop_evt);
+            if (g_ipc_thread) {
+                WaitForSingleObject(g_ipc_thread, 500);
+                CloseHandle(g_ipc_thread);
+                g_ipc_thread = nullptr;
+            }
+            CloseHandle(g_ipc_stop_evt);
+            g_ipc_stop_evt = nullptr;
+        }
+        if (g_shm)        { UnmapViewOfFile(g_shm);     g_shm        = nullptr; }
+        if (g_shm_handle) { CloseHandle(g_shm_handle);  g_shm_handle = nullptr; }
+
         if (g_real_version) {
             FreeLibrary(g_real_version);
             g_real_version = nullptr;
