@@ -67,7 +67,6 @@ static uint8_t    g_spinner_unlocked = 0;
 static uint32_t g_levels_unlocked_local = 0u;
 
 // ── IPC (debug UI) state ──────────────────────────────────────────────────────
-static HMODULE  g_hmod_self      = nullptr; // our own DLL module (set in DllMain)
 static HANDLE   g_shm_handle     = nullptr;
 static SdvxApSharedState* g_shm  = nullptr;
 static HANDLE   g_ipc_stop_evt   = nullptr;
@@ -395,29 +394,6 @@ static DWORD WINAPI init_thread(LPVOID) {
         if (g_ipc_stop_evt)
             g_ipc_thread = CreateThread(nullptr, 0, ipc_poll_thread, nullptr, 0, nullptr);
 
-        // Launch the debug UI from the same directory as our DLL
-        if (g_hmod_self) {
-            wchar_t dll_path[MAX_PATH] = {};
-            GetModuleFileNameW(g_hmod_self, dll_path, MAX_PATH);
-            // Replace filename with sdvx_ap_debug.exe
-            wchar_t* last_sep = wcsrchr(dll_path, L'\\');
-            if (!last_sep) last_sep = wcsrchr(dll_path, L'/');
-            if (last_sep) {
-                wcscpy_s(last_sep + 1, MAX_PATH - (last_sep - dll_path + 1),
-                         L"sdvx_ap_debug.exe");
-                STARTUPINFOW si = {};
-                si.cb = sizeof(si);
-                PROCESS_INFORMATION pi = {};
-                if (CreateProcessW(dll_path, nullptr, nullptr, nullptr,
-                                   FALSE, 0, nullptr, nullptr, &si, &pi)) {
-                    CloseHandle(pi.hThread);
-                    CloseHandle(pi.hProcess);
-                    log("[IPC] Launched sdvx_ap_debug.exe");
-                } else {
-                    log("[IPC] sdvx_ap_debug.exe not found or failed to launch (optional)");
-                }
-            }
-        }
     }
 
     // Wire AP client callbacks
@@ -545,7 +521,6 @@ BOOL  WINAPI ver_fwd_VerQueryValueW(LPCVOID blk, LPCWSTR sub, LPVOID* buf, PUINT
 // ============================================================
 BOOL WINAPI DllMain(HINSTANCE hInst, DWORD reason, LPVOID) {
     if (reason == DLL_PROCESS_ATTACH) {
-        g_hmod_self = hInst;
         DisableThreadLibraryCalls(hInst);
         load_real_version();
 
