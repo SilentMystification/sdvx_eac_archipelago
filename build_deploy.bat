@@ -12,10 +12,10 @@ echo Deploying to %DEPLOY_DIR%...
 
 if not exist "%DEPLOY_DIR%\" goto no_dir
 
-copy /Y "%~dp0build\version.dll" "%DEPLOY_DIR%\version.dll" >nul
+copy /Y "%~dp0deploy\version.dll" "%DEPLOY_DIR%\version.dll" >nul
 if errorlevel 1 goto copy_fail
 
-copy /Y "%~dp0build\sdvx_ap_debug.exe" "%DEPLOY_DIR%\sdvx_ap_debug.exe" >nul
+copy /Y "%~dp0deploy\sdvx_ap_debug.exe" "%DEPLOY_DIR%\sdvx_ap_debug.exe" >nul
 if errorlevel 1 goto copy_fail
 
 echo.

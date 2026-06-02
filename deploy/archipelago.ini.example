@@ -1,0 +1,34 @@
+; SDVX Archipelago Client Configuration
+; Copy this file to archipelago.ini in the same folder (game\modules\)
+
+[Archipelago]
+; Archipelago server hostname or IP
+host = archipelago.gg
+
+; Port (default 38281)
+port = 38281
+
+; Your player slot name (must match what was used when generating the seed)
+slot = YourName
+
+; Room password (leave blank if none)
+password =
+
+; Game name (must match the AP world name exactly)
+game = Sound Voltex
+
+[Game]
+; Base ID offsets — must match the AP world package exactly.
+; Items occupy  item_base_id + 0..99999     (8000000–8099999)
+; Locations:    location_base_id + music_id * 10 + difficulty
+;   difficulty: 0=NOVICE  1=ADVANCED  2=EXHAUST  3=MAXIMUM/INFINITE
+location_base_id = 8100000
+item_base_id     = 8000000
+
+; Number of song clears required to reach the goal
+goal_clears = 30
+
+[Debug]
+; Set to 1 to enable logging (creates sdvx_ap.log next to the DLL)
+enabled  = 1
+log_path = sdvx_ap.log

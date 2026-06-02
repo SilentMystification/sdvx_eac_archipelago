@@ -49,7 +49,7 @@ echo [2/3] Compiling sdvx_ap_debug (sdvx_ap_debug.exe)...
     /I"%SDK_INC%\ucrt" ^
     /I"%SDK_INC%\shared" ^
     /I"%SDK_INC%\um" ^
-    "%ROOT%\tools\debug_ui.cpp" ^
+    "%ROOT%\src\debug_ui.cpp" ^
     /Fe"sdvx_ap_debug.exe" ^
     /link ^
     /SUBSYSTEM:WINDOWS ^
@@ -86,16 +86,23 @@ echo [3/3] Compiling sdvx_archipelago (version.dll)...
     kernel32.lib user32.lib advapi32.lib
 if errorlevel 1 goto fail
 
+:: ---- Stage deployable files to deploy\ -------------------------------------
+if not exist "%ROOT%\deploy" mkdir "%ROOT%\deploy"
+copy /Y "%ROOT%\build\version.dll"       "%ROOT%\deploy\version.dll"       >nul
+copy /Y "%ROOT%\build\sdvx_ap_debug.exe" "%ROOT%\deploy\sdvx_ap_debug.exe" >nul
+
+:: ---- Stage AP world static files to deploy\ap_world\ ----------------------
+if not exist "%ROOT%\deploy\ap_world" mkdir "%ROOT%\deploy\ap_world"
+copy /Y "%ROOT%\ap_world\__init__.py"        "%ROOT%\deploy\ap_world\__init__.py"        >nul
+copy /Y "%ROOT%\ap_world\sdvx_template.yaml" "%ROOT%\deploy\ap_world\sdvx_template.yaml" >nul
+
 echo.
 echo === Build SUCCESS ===
-echo Outputs: %ROOT%\build\version.dll
-echo          %ROOT%\build\sdvx_ap_debug.exe
-echo.
-echo Install:
-echo   1. Copy build\version.dll       -^>  C:\Games\SOUND VOLTEX EXCEED GEAR\game\modules\
-echo   2. Copy build\sdvx_ap_debug.exe -^>  C:\Games\SOUND VOLTEX EXCEED GEAR\game\modules\
-echo   3. Copy archipelago.ini.example -^>  same folder, rename to archipelago.ini
-echo   4. Edit archipelago.ini with your server/slot details
+echo Deploy folder: %ROOT%\deploy\
+echo   Game mod (drag into game modules\):
+echo     version.dll
+echo     sdvx_ap_debug.exe
+echo   AP world (run generate-apworld.bat, then drag ap_world\sdvx\ into Archipelago worlds\)
 echo.
 cd /d "%ROOT%"
 exit /b 0

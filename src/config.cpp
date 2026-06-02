@@ -30,8 +30,8 @@ Config Config::load(const std::string& ini_path) {
     c.item_base_id     = static_cast<int64_t>(GetIniInt("Game", "item_base_id",     8000000, p));
     c.goal_clears      = GetIniInt("Game", "goal_clears", 30, p);
 
-    c.debug_log = GetIniInt("Debug", "enabled", 0, p) != 0;
-    c.log_path  = GetIniString("Debug", "log_path", "sdvx_ap.log", p);
+    c.debug_log     = GetIniInt("Debug", "enabled", 0, p) != 0;
+    c.log_path      = GetIniString("Debug", "log_path", "sdvx_ap.log", p);
 
     return c;
 }
