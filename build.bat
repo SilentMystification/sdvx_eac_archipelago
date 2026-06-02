@@ -91,10 +91,6 @@ if not exist "%ROOT%\deploy" mkdir "%ROOT%\deploy"
 copy /Y "%ROOT%\build\version.dll"       "%ROOT%\deploy\version.dll"       >nul
 copy /Y "%ROOT%\build\sdvx_ap_debug.exe" "%ROOT%\deploy\sdvx_ap_debug.exe" >nul
 
-:: ---- Stage AP world static files to deploy\ap_world\ ----------------------
-if not exist "%ROOT%\deploy\ap_world" mkdir "%ROOT%\deploy\ap_world"
-copy /Y "%ROOT%\ap_world\__init__.py"        "%ROOT%\deploy\ap_world\__init__.py"        >nul
-copy /Y "%ROOT%\ap_world\sdvx_template.yaml" "%ROOT%\deploy\ap_world\sdvx_template.yaml" >nul
 
 echo.
 echo === Build SUCCESS ===

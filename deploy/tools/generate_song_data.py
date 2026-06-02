@@ -73,7 +73,7 @@ def parse_music_db(xml_path: str):
                     if seen_idx3:
                         continue   # skip duplicate 4th-diff entry
                     seen_idx3 = True
-                diffs.append((idx, label))
+                diffs.append((idx, label, dn))
 
         if diffs:
             songs.append({
@@ -94,7 +94,7 @@ def build_location_table(songs):
     for song in songs:
         mid   = song['id']
         title = song['title']
-        for diff_idx, diff_label in song['diffs']:
+        for diff_idx, diff_label, _level in song['diffs']:
             name = f'{title} [{diff_label}]'
             loc_id = LOCATION_BASE_ID + mid * 10 + diff_idx
 
@@ -123,9 +123,9 @@ def write_data_py(songs, location_table, output_path: str):
         f'LOCATION_BASE_ID: int = {LOCATION_BASE_ID}',
         f'ITEM_BASE_ID: int     = {ITEM_BASE_ID}',
         '',
-        '# Each entry: (music_id, ascii_id, display_title, [(diff_index, diff_label), ...])',
-        '# diff_index: 0=NOV  1=ADV  2=EXH  3=INF/MXM',
-        'SONGS: List[Tuple[int, str, str, List[Tuple[int, str]]]] = [',
+        '# Each entry: (music_id, ascii_id, display_title, [(diff_index, diff_label, diff_level), ...])',
+        '# diff_index: 0=NOV  1=ADV  2=EXH  3=INF/MXM  |  diff_level: 1-20',
+        'SONGS: List[Tuple[int, str, str, List[Tuple[int, str, int]]]] = [',
     ]
 
     for song in songs:
