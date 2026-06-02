@@ -139,3 +139,4 @@ enabled  = 0                 ; set to 1 to write sdvx_ap.log next to the DLL
 - **[MinHook](https://github.com/tsudakageyu)** — Tsuda Kageyu — minimalistic API hooking library for x64/x86
 - **[bemanitools](https://github.com/djhackersdev/bemanitools)** — xyen / djhackers — BEMANI game tooling including the SDVX IO API
 - **[kshook](https://github.com/emskye96/kshook)** — emskye96 — SDVX score hook reference implementation
+- **[extdrm](https://github.com/YoshihikoAbe/extdrm)** — YoshihikoAbe — Modified tool for decrypting extdrm filesystems (how we're able to grab music_db.xml)
