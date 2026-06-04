@@ -22,7 +22,7 @@
 
 #include "hooks.h"
 #include "offsets.h"
-#include "../MinHook/include/MinHook.h"
+#include "../include/MinHook/include/MinHook.h"
 #include <windows.h>
 #include <atomic>
 #include <cstdint>

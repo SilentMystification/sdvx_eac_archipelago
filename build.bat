@@ -36,11 +36,11 @@ cd /d "%ROOT%\build"
 echo [1/3] Compiling MinHook...
 
 cl /c /nologo /O2 /W0 /MT /GS- ^
-    /I"%ROOT%\MinHook\include" ^
-    "%ROOT%\MinHook\src\buffer.c" ^
-    "%ROOT%\MinHook\src\hook.c" ^
-    "%ROOT%\MinHook\src\trampoline.c" ^
-    "%ROOT%\MinHook\src\hde\hde64.c"
+    /I"%ROOT%\include\MinHook\include" ^
+    "%ROOT%\include\MinHook\src\buffer.c" ^
+    "%ROOT%\include\MinHook\src\hook.c" ^
+    "%ROOT%\include\MinHook\src\trampoline.c" ^
+    "%ROOT%\include\MinHook\src\hde\hde64.c"
 if errorlevel 1 goto fail
 
 lib /nologo /OUT:minhook.lib buffer.obj hook.obj trampoline.obj hde64.obj
@@ -64,7 +64,7 @@ echo [3/3] Compiling version.dll...
 cl /LD /nologo /O2 /W3 /MT /GS /EHsc /std:c++17 ^
     /I"%ROOT%\src" ^
     /I"%ROOT%\include" ^
-    /I"%ROOT%\MinHook\include" ^
+    /I"%ROOT%\include\MinHook\include" ^
     "%ROOT%\src\dllmain.cpp" ^
     "%ROOT%\src\config.cpp" ^
     "%ROOT%\src\ap_client.cpp" ^
