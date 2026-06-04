@@ -28,9 +28,20 @@ jobs:
 
       # ── Release steps run on push events only (not PRs) ─────────────────────
 
+      - name: Get build time
+        if: github.event_name == 'push'
+        id: buildtime
+        run: echo "value=$(Get-Date -Format 'yyyy-MM-dd HH:mm UTC')" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
       - name: Create release archive
         if: github.event_name == 'push'
-        run: Compress-Archive -Path deploy/* -DestinationPath sdvx-ap.zip
+        run: |
+          Compress-Archive -Path deploy/* -DestinationPath _sdvx-archipelago-latest.zip
+          Copy-Item deploy/version.dll version.dll
+          Copy-Item deploy/sdvx_ap_debug.exe sdvx_ap_debug.exe
+          Copy-Item deploy/archipelago.ini archipelago.ini
+          Copy-Item deploy/generate-apworld.bat generate-apworld.bat
         shell: pwsh
 
       # Main branch — versioned full release + update latest
@@ -59,15 +70,22 @@ jobs:
         with:
           tag_name: ${{ steps.version.outputs.value }}
           name: ${{ steps.version.outputs.value }}
-          files: sdvx-ap.zip
-          generate_release_notes: true
+          body: |
+            ## Installation
 
-      - name: Move latest tag
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: |
-          git tag -f latest
-          git push origin latest --force
-        shell: pwsh
+            **Full install** — download `_sdvx-archipelago-latest.zip` and extract all contents into the game's `modules\` folder, then open `archipelago.ini` and set `slot` to your Archipelago slot name.
+
+            **DLL update only** — download `version.dll` and replace the existing file in your `modules\` folder.
+
+            ---
+            Built: ${{ steps.buildtime.outputs.value }}
+          files: |
+            _sdvx-archipelago-latest.zip
+            version.dll
+            sdvx_ap_debug.exe
+            archipelago.ini
+            generate-apworld.bat
+          generate_release_notes: true
 
       - name: Update latest release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -75,7 +93,21 @@ jobs:
         with:
           tag_name: latest
           name: Latest
-          files: sdvx-ap.zip
+          body: |
+            ## Installation
+
+            **Full install** — download `_sdvx-archipelago-latest.zip` and extract all contents into the game's `modules\` folder, then open `archipelago.ini` and set `slot` to your Archipelago slot name.
+
+            **DLL update only** — download `version.dll` and replace the existing file in your `modules\` folder.
+
+            ---
+            Built: ${{ steps.buildtime.outputs.value }}
+          files: |
+            _sdvx-archipelago-latest.zip
+            version.dll
+            sdvx_ap_debug.exe
+            archipelago.ini
+            generate-apworld.bat
           prerelease: true
           make_latest: false
 
@@ -97,6 +129,20 @@ jobs:
         with:
           tag_name: ${{ steps.branch.outputs.tag }}
           name: ${{ steps.branch.outputs.name }}
-          files: sdvx-ap.zip
+          body: |
+            ## Installation
+
+            **Full install** — download `_sdvx-archipelago-latest.zip` and extract all contents into the game's `modules\` folder, then open `archipelago.ini` and set `slot` to your Archipelago slot name.
+
+            **DLL update only** — download `version.dll` and replace the existing file in your `modules\` folder.
+
+            ---
+            Built: ${{ steps.buildtime.outputs.value }}
+          files: |
+            _sdvx-archipelago-latest.zip
+            version.dll
+            sdvx_ap_debug.exe
+            archipelago.ini
+            generate-apworld.bat
           prerelease: true
           make_latest: false
