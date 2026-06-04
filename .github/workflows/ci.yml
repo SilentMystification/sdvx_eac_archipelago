@@ -30,7 +30,12 @@ jobs:
 
       - name: Create release archive
         if: github.event_name == 'push'
-        run: Compress-Archive -Path deploy/* -DestinationPath sdvx-ap.zip
+        run: |
+          Compress-Archive -Path deploy/* -DestinationPath sdvx-ap.zip
+          Copy-Item deploy/version.dll version.dll
+          Copy-Item deploy/sdvx_ap_debug.exe sdvx_ap_debug.exe
+          Copy-Item deploy/archipelago.ini archipelago.ini
+          Copy-Item deploy/generate-apworld.bat generate-apworld.bat
         shell: pwsh
 
       # Main branch — versioned full release + update latest
@@ -59,7 +64,18 @@ jobs:
         with:
           tag_name: ${{ steps.version.outputs.value }}
           name: ${{ steps.version.outputs.value }}
-          files: sdvx-ap.zip
+          body: |
+            ## Installation
+
+            **Full install** — download `sdvx-ap.zip` and extract all contents into the game's `modules\` folder, then open `archipelago.ini` and set `slot` to your Archipelago slot name.
+
+            **DLL update only** — download `version.dll` and replace the existing file in your `modules\` folder.
+          files: |
+            sdvx-ap.zip
+            version.dll
+            sdvx_ap_debug.exe
+            archipelago.ini
+            generate-apworld.bat
           generate_release_notes: true
 
       - name: Update latest release
@@ -68,7 +84,18 @@ jobs:
         with:
           tag_name: latest
           name: Latest
-          files: sdvx-ap.zip
+          body: |
+            ## Installation
+
+            **Full install** — download `sdvx-ap.zip` and extract all contents into the game's `modules\` folder, then open `archipelago.ini` and set `slot` to your Archipelago slot name.
+
+            **DLL update only** — download `version.dll` and replace the existing file in your `modules\` folder.
+          files: |
+            sdvx-ap.zip
+            version.dll
+            sdvx_ap_debug.exe
+            archipelago.ini
+            generate-apworld.bat
           prerelease: true
           make_latest: false
 
@@ -90,6 +117,17 @@ jobs:
         with:
           tag_name: ${{ steps.branch.outputs.tag }}
           name: ${{ steps.branch.outputs.name }}
-          files: sdvx-ap.zip
+          body: |
+            ## Installation
+
+            **Full install** — download `sdvx-ap.zip` and extract all contents into the game's `modules\` folder, then open `archipelago.ini` and set `slot` to your Archipelago slot name.
+
+            **DLL update only** — download `version.dll` and replace the existing file in your `modules\` folder.
+          files: |
+            sdvx-ap.zip
+            version.dll
+            sdvx_ap_debug.exe
+            archipelago.ini
+            generate-apworld.bat
           prerelease: true
           make_latest: false
