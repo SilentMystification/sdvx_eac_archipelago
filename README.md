@@ -1,6 +1,6 @@
 # SDVX EAC Archipelago
 
-A DLL mod for **Sound Voltex EXCEED GEAR (sv6c)** that connects the game to an [Archipelago](https://archipelago.gg) multiworld session. Buttons and knobs start locked and are unlocked as Archipelago items are received. Song clears send location checks to the server.
+A DLL mod for **Sound Voltex EXCEED GEAR (sv6c)** that connects the game to an [Archipelago](https://archipelago.gg) multiworld session. Buttons, knobs and all Difficulty Levels start locked and are unlocked as Archipelago items are received. Song clears send location checks to the server.
 
 ---
 
