@@ -1,34 +1,6 @@
 # SDVX EAC Archipelago
 
-A DLL mod for **Sound Voltex EXCEED GEAR (sv6c)** that connects the game to an [Archipelago](https://archipelago.gg) multiworld session. Buttons and knobs start locked and are unlocked as Archipelago items are received. Song clears send location checks to the server.
-
----
-
-## Requirements
-
-- **Visual Studio 2022 Build Tools** (or full VS 2022) with the **Desktop development with C++** workload
-  - Download: https://aka.ms/vs/17/release/vs_buildtools.exe
-- Sound Voltex EXCEED GEAR (sv6c) with bemanitools / dinputhook-sdvx
-
----
-
-## Building
-
-Run `build.bat` to compile and stage output into `deploy\`. If you want to build and copy directly into the game folder in one step, run `build_deploy.bat` instead — edit the `DEPLOY_DIR` path at the top of that script to match your installation.
-
-Both scripts auto-detect your Visual Studio installation via `vswhere.exe`.
-
----
-
-## Releases
-
-Every push triggers a CI build. Pre-built releases are available on the [Releases page](../../releases).
-
-- **Latest** — pre-release, always updated on every merge to `main`
-- **Versioned releases** (`0.0`, `0.1`, …) — full releases, one per merge to `main`, minor auto-incremented
-- **Branch pre-releases** (`my-branch @ a3f9c12`) — one per push to any non-main branch, newest first
-
-The major version is defined in the [`VERSION`](VERSION) file. To bump it (e.g. `0` → `1`), edit that file and merge — the next release will be `1.0`.
+A DLL mod for **Sound Voltex EXCEED GEAR (sv6c)** that connects the game to an [Archipelago](https://archipelago.gg) multiworld session. Buttons, knobs and all Difficulty Levels start locked and are unlocked as Archipelago items are received. Song clears send location checks to the server.
 
 ---
 
@@ -53,7 +25,7 @@ deploy\
 
 ### Game mod
 
-Drag the entire contents of `deploy\` into the game's `modules\` folder, then edit `archipelago.ini` and set `slot = YourName` to match your slot in the AP room.
+Either download the [latest release](../../releases/latest) and extract it, or clone this repository and run `build.bat` to produce the `deploy\` folder. Then drag the entire contents of `deploy\` into the game's `modules\` folder and edit `archipelago.ini` — at minimum set `slot` to match your slot name in the AP room.
 
 ### AP world
 
@@ -112,6 +84,32 @@ Enable `[Debug] enabled = 1` to write a log file next to the DLL if you need to 
 | START | Start button |
 | Knob LEFT, Knob RIGHT | Analog knobs |
 | Song unlocks | Individual songs/difficulties (future) |
+
+---
+
+## Requirements
+
+- Sound Voltex EXCEED GEAR (sv6c) with the EAC version of bemanitools / dinputhook-sdvx
+
+---
+
+## Building
+
+Run `build.bat` to compile and stage output into `deploy\`. If you want to build and copy directly into the game folder in one step, run `build_deploy.bat` instead — edit the `DEPLOY_DIR` path at the top of that script to match your installation.
+
+Both scripts auto-detect your Visual Studio installation via `vswhere.exe`. Requires **Visual Studio 2022** (or Build Tools) with the **Desktop development with C++** workload — download at https://aka.ms/vs/17/release/vs_buildtools.exe.
+
+---
+
+## Releases
+
+Every push triggers a CI build. Pre-built releases are available on the [Releases page](../../releases).
+
+- **Latest** — pre-release, always updated on every merge to `main`
+- **Versioned releases** (`0.0`, `0.1`, …) — full releases, one per merge to `main`, minor auto-incremented
+- **Branch pre-releases** (`my-branch @ a3f9c12`) — one per push to any non-main branch, newest first
+
+The major version is defined in the [`VERSION`](VERSION) file. To bump it (e.g. `0` → `1`), edit that file and merge — the next release will be `1.0`.
 
 ---
 

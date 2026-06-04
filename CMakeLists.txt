@@ -5,12 +5,12 @@ set(CMAKE_CXX_STANDARD 17)
 
 # ---- MinHook (included as source) ------------------------------------------
 add_library(minhook STATIC
-    MinHook/src/buffer.c
-    MinHook/src/hook.c
-    MinHook/src/trampoline.c
-    MinHook/src/hde/hde64.c
+    include/MinHook/src/buffer.c
+    include/MinHook/src/hook.c
+    include/MinHook/src/trampoline.c
+    include/MinHook/src/hde/hde64.c
 )
-target_include_directories(minhook PUBLIC MinHook/include)
+target_include_directories(minhook PUBLIC include/MinHook/include)
 
 # ---- Main DLL --------------------------------------------------------------
 add_library(sdvx_archipelago SHARED
