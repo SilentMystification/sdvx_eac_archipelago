@@ -89,27 +89,22 @@ jobs:
 
       - name: Update latest release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: latest
-          name: Latest
-          body: |
-            ## Installation
+        run: |
+          @"
+          ## Installation
 
-            **Full install** — download `_sdvx-archipelago-latest.zip` and extract all contents into the game's `modules\` folder, then open `archipelago.ini` and set `slot` to your Archipelago slot name.
+          **Full install** — download ``_sdvx-archipelago-latest.zip`` and extract all contents into the game's ``modules\`` folder, then open ``archipelago.ini`` and set ``slot`` to your Archipelago slot name.
 
-            **DLL update only** — download `version.dll` and replace the existing file in your `modules\` folder.
+          **DLL update only** — download ``version.dll`` and replace the existing file in your ``modules\`` folder.
 
-            ---
-            Built: ${{ steps.buildtime.outputs.value }}
-          files: |
-            _sdvx-archipelago-latest.zip
-            version.dll
-            sdvx_ap_debug.exe
-            archipelago.ini
-            generate-apworld.bat
-          prerelease: true
-          make_latest: false
+          Built: ${{ steps.buildtime.outputs.value }}
+          "@ | Set-Content release-notes.md
+          gh release delete latest --yes --cleanup-tag 2>$null; $true
+          gh release create latest --prerelease --title "Latest" --notes-file release-notes.md `
+            _sdvx-archipelago-latest.zip version.dll sdvx_ap_debug.exe archipelago.ini generate-apworld.bat
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       # Non-main branches — pre-release tagged <branch>-<sha>
 
