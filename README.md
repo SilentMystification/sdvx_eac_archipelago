@@ -26,32 +26,20 @@ Output is staged into `deploy\`. See the **Deployment** section below.
 
 ## Releases
 
-Every push triggers a CI build. Pre-built releases are available on the [Releases page](../../releases).
+Every push triggers a CI build. Merging into `main` automatically publishes a release.
 
-To publish a new release, push a version tag:
+Pre-built releases are available on the [Releases page](../../releases):
 
-```sh
-git tag v1.0.0
-git push origin v1.0.0
-```
-
-This builds the project and attaches the full `deploy\` folder as a zip to the GitHub Release.
+- **Latest** — always points to the most recent merge to `main`
+- **Dated releases** (e.g. `2025-06-04-1430`) — permanent snapshots of each merge
 
 ### Branch protection (one-time repo setup)
 
 After the CI workflow has run at least once, enable branch protection on `main` with:
 
-```sh
-gh api repos/OWNER/REPO/branches/main/protection \
-  --method PUT \
-  --field 'required_status_checks={"strict":true,"contexts":["build"]}' \
-  --field enforce_admins=false \
-  --field 'required_pull_request_reviews={"required_approving_review_count":1,"dismiss_stale_reviews":true}' \
-  --field required_conversation_resolution=true \
-  --field restrictions=null
+```powershell
+'{"required_status_checks":{"strict":true,"contexts":["build"]},"enforce_admins":true,"required_pull_request_reviews":{"required_approving_review_count":1,"dismiss_stale_reviews":true},"required_conversation_resolution":true,"restrictions":null}' | gh api repos/SilentMystification/sdvx_eac_archipelago/branches/main/protection --method PUT --input -
 ```
-
-Replace `OWNER/REPO` with your repository path (e.g. `SilentMystification/sdvx_eac_archipelago`).
 
 ---
 

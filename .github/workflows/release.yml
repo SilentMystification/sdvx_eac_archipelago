@@ -2,8 +2,7 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [main]
 
 jobs:
   release:
@@ -13,18 +12,41 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Build
         run: build.bat
         shell: cmd
 
-      - name: Create release archive
-        run: Compress-Archive -Path deploy/* -DestinationPath sdvx-ap-${{ github.ref_name }}.zip
+      - name: Get date tag
+        id: tag
+        run: echo "value=$(Get-Date -Format 'yyyy-MM-dd-HHmm')" >> $env:GITHUB_OUTPUT
         shell: pwsh
 
-      - name: Publish GitHub Release
+      - name: Create release archive
+        run: Compress-Archive -Path deploy/* -DestinationPath sdvx-ap.zip
+        shell: pwsh
+
+      - name: Publish dated release
         uses: softprops/action-gh-release@v2
         with:
-          name: ${{ github.ref_name }}
-          files: sdvx-ap-${{ github.ref_name }}.zip
+          tag_name: ${{ steps.tag.outputs.value }}
+          name: ${{ steps.tag.outputs.value }}
+          files: sdvx-ap.zip
           generate_release_notes: true
+
+      - name: Move latest tag
+        run: |
+          git tag -f latest
+          git push origin latest --force
+        shell: bash
+
+      - name: Update latest release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest
+          files: sdvx-ap.zip
+          prerelease: true
+          make_latest: false
