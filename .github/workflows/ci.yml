@@ -7,9 +7,13 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Build
         run: build.bat
@@ -21,3 +25,78 @@ jobs:
           name: sdvx-ap-${{ github.sha }}
           path: deploy/
           if-no-files-found: error
+
+      # ── Release steps run on push events only (not PRs) ─────────────────────
+
+      - name: Create release archive
+        if: github.event_name == 'push'
+        run: Compress-Archive -Path deploy/* -DestinationPath sdvx-ap.zip
+        shell: pwsh
+
+      # Main branch — versioned full release + update latest
+
+      - name: Get next version
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        id: version
+        run: |
+          $major = (Get-Content VERSION).Trim()
+          $releases = gh release list --json tagName,isPrerelease | ConvertFrom-Json
+          $last = $releases | Where-Object { -not $_.isPrerelease -and $_.tagName -match "^$major\.\d+$" } | Select-Object -First 1
+          if ($last) {
+            $minor = [int]$last.tagName.Split('.')[1]
+            $next = "$major.$($minor + 1)"
+          } else {
+            $next = "$major.0"
+          }
+          echo "value=$next" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Publish versioned release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.value }}
+          name: ${{ steps.version.outputs.value }}
+          files: sdvx-ap.zip
+          generate_release_notes: true
+
+      - name: Move latest tag
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          git tag -f latest
+          git push origin latest --force
+        shell: pwsh
+
+      - name: Update latest release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest
+          files: sdvx-ap.zip
+          prerelease: true
+          make_latest: false
+
+      # Non-main branches — pre-release tagged <branch>-<sha>
+
+      - name: Get branch info
+        if: github.event_name == 'push' && github.ref != 'refs/heads/main'
+        id: branch
+        run: |
+          $sanitized = "${{ github.ref_name }}" -replace '[^a-zA-Z0-9._-]', '-'
+          $sha = "${{ github.sha }}".Substring(0, 7)
+          echo "tag=$sanitized-$sha" >> $env:GITHUB_OUTPUT
+          echo "name=${{ github.ref_name }} @ $sha" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
+      - name: Publish branch pre-release
+        if: github.event_name == 'push' && github.ref != 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.branch.outputs.tag }}
+          name: ${{ steps.branch.outputs.name }}
+          files: sdvx-ap.zip
+          prerelease: true
+          make_latest: false

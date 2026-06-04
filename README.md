@@ -14,32 +14,21 @@ A DLL mod for **Sound Voltex EXCEED GEAR (sv6c)** that connects the game to an [
 
 ## Building
 
-`build.bat` auto-detects your Visual Studio installation via `vswhere.exe` — no path editing needed.
+Run `build.bat` to compile and stage output into `deploy\`. If you want to build and copy directly into the game folder in one step, run `build_deploy.bat` instead — edit the `DEPLOY_DIR` path at the top of that script to match your installation.
 
-```bat
-build.bat
-```
-
-Output is staged into `deploy\`. See the **Deployment** section below.
+Both scripts auto-detect your Visual Studio installation via `vswhere.exe`.
 
 ---
 
 ## Releases
 
-Every push triggers a CI build. Merging into `main` automatically publishes a release.
+Every push triggers a CI build. Pre-built releases are available on the [Releases page](../../releases).
 
-Pre-built releases are available on the [Releases page](../../releases):
+- **Latest** — pre-release, always updated on every merge to `main`
+- **Versioned releases** (`0.0`, `0.1`, …) — full releases, one per merge to `main`, minor auto-incremented
+- **Branch pre-releases** (`my-branch @ a3f9c12`) — one per push to any non-main branch, newest first
 
-- **Latest** — always points to the most recent merge to `main`
-- **Dated releases** (e.g. `2025-06-04-1430`) — permanent snapshots of each merge
-
-### Branch protection (one-time repo setup)
-
-After the CI workflow has run at least once, enable branch protection on `main` with:
-
-```powershell
-'{"required_status_checks":{"strict":true,"contexts":["build"]},"enforce_admins":true,"required_pull_request_reviews":{"required_approving_review_count":1,"dismiss_stale_reviews":true},"required_conversation_resolution":true,"restrictions":null}' | gh api repos/SilentMystification/sdvx_eac_archipelago/branches/main/protection --method PUT --input -
-```
+The major version is defined in the [`VERSION`](VERSION) file. To bump it (e.g. `0` → `1`), edit that file and merge — the next release will be `1.0`.
 
 ---
 
@@ -94,21 +83,14 @@ C:\ProgramData\Archipelago\lib\worlds\sdvx\
 
 ## Configuration
 
-Edit `archipelago.ini` (included in `deploy\`) before launching the game:
+`archipelago.ini` is included in `deploy\` and gets copied into the game's `modules\` folder alongside the DLL. Open it there and set at minimum:
 
-```ini
-[Archipelago]
-host     = archipelago.gg   ; server hostname or IP
-port     = 38281
-slot     = YourName          ; must match your slot name in the AP room
-password =                   ; leave blank if the room has no password
+- **`slot`** — your player slot name, must match exactly what was used when generating the AP seed
+- **`host` / `port`** — your Archipelago server address (defaults point to archipelago.gg)
+- **`password`** — leave blank if the room has no password
+- **`goal_clears`** — number of song clears required to finish (default 30)
 
-[Game]
-goal_clears = 30             ; number of song clears needed to finish
-
-[Debug]
-enabled  = 0                 ; set to 1 to write sdvx_ap.log next to the DLL
-```
+Enable `[Debug] enabled = 1` to write a log file next to the DLL if you need to troubleshoot.
 
 ---
 
