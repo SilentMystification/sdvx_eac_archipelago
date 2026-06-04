@@ -32,7 +32,8 @@ constexpr SIZE_T   SDVX_AP_IPC_SIZE  = 64u;  // rounded up; struct is ~20 bytes
 struct SdvxApSharedState {
     uint32_t          magic;      // SDVX_AP_IPC_MAGIC when valid
     uint16_t          inputs;     // input unlock bitmask (bits 0-8)
-    uint16_t          _pad;
+    uint8_t           ap_status;  // 0=no config, 1=hooks installed, 2=AP connected
+    uint8_t           _pad0;
     uint32_t          levels;     // level folder unlock bitmask (bits 0-19)
     volatile uint32_t seq_dll;    // DLL increments each time it writes state
     volatile uint32_t seq_ui;     // UI increments each time it writes state

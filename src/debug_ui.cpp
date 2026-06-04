@@ -18,7 +18,8 @@ constexpr SIZE_T   SDVX_AP_IPC_SIZE  = 64u;
 struct SdvxApSharedState {
     uint32_t          magic;
     uint16_t          inputs;
-    uint16_t          _pad;
+    uint8_t           ap_status;  // 0=no config, 1=hooks installed, 2=AP connected
+    uint8_t           _pad0;
     uint32_t          levels;
     volatile uint32_t seq_dll;
     volatile uint32_t seq_ui;
@@ -313,14 +314,25 @@ static void paint(HWND hwnd) {
 
     SelectObject(hdc, g_font_stat);
     SetBkMode(hdc, TRANSPARENT);
-    if (connected) {
-        SetTextColor(hdc, CLR_CONNECTED);
-        DrawTextW(hdc, L"●  GAME CONNECTED", -1, &status_rc,
-                  DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-    } else {
+    if (!connected) {
         SetTextColor(hdc, CLR_DISCONNECTED);
         DrawTextW(hdc, L"○  Game not running", -1, &status_rc,
                   DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    } else {
+        uint8_t ap_st = g_shm->ap_status;
+        if (ap_st == 0) {
+            SetTextColor(hdc, RGB(220, 140, 0));
+            DrawTextW(hdc, L"○  Game running — configure archipelago.ini", -1, &status_rc,
+                      DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        } else if (ap_st == 1) {
+            SetTextColor(hdc, RGB(220, 200, 0));
+            DrawTextW(hdc, L"●  Game connected — AP disconnected", -1, &status_rc,
+                      DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        } else {
+            SetTextColor(hdc, CLR_CONNECTED);
+            DrawTextW(hdc, L"●  Game connected — AP connected", -1, &status_rc,
+                      DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        }
     }
 
     BitBlt(hdc_real, 0, 0, cr.right, cr.bottom, hdc, 0, 0, SRCCOPY);

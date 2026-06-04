@@ -314,6 +314,7 @@ static void on_ap_print(const std::string& msg) {
 
 static void on_ap_connected(int slot, const std::string& name) {
     log("[AP] Connected as slot " + std::to_string(slot) + " (" + name + ")");
+    if (g_shm) g_shm->ap_status = 2;
 
     // Re-send cleared locations
     {
@@ -360,6 +361,30 @@ static DWORD WINAPI init_thread(LPVOID) {
         " port=" + std::to_string(g_cfg.ap_port) +
         " slot=" + g_cfg.ap_slot);
 
+    // ── Debug UI: create shared memory so the debug app can always connect ──────
+    // Created before the config check so the UI can reflect the "no config" state.
+    {
+        g_shm_handle = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr,
+                                          PAGE_READWRITE, 0, SDVX_AP_IPC_SIZE,
+                                          SDVX_AP_SHM_NAME);
+        if (g_shm_handle) {
+            g_shm = reinterpret_cast<SdvxApSharedState*>(
+                MapViewOfFile(g_shm_handle, FILE_MAP_ALL_ACCESS, 0, 0, SDVX_AP_IPC_SIZE));
+            if (g_shm) {
+                ZeroMemory(g_shm, SDVX_AP_IPC_SIZE);
+                g_shm->magic     = SDVX_AP_IPC_MAGIC;
+                g_shm->ap_status = 0;  // no config yet
+                log("[IPC] Shared memory created: Local\\SDVX_AP_IPC_v1");
+            }
+        }
+        if (!g_shm) log("[IPC] WARNING: Failed to create shared memory");
+
+        // Start poll thread (runs even if IPC failed — it'll just do nothing)
+        g_ipc_stop_evt = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+        if (g_ipc_stop_evt)
+            g_ipc_thread = CreateThread(nullptr, 0, ipc_poll_thread, nullptr, 0, nullptr);
+    }
+
     if (g_cfg.ap_slot.empty()) {
         log("ERROR: archipelago.ini missing or slot not set. AP disabled.");
         return 0;
@@ -373,28 +398,7 @@ static DWORD WINAPI init_thread(LPVOID) {
     }
     log("Hooks installed OK — inputs locked, all LEVEL folders locked until AP items arrive");
 
-    // ── Debug UI: create shared memory and launch sdvx_ap_debug.exe ──────────
-    {
-        g_shm_handle = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr,
-                                          PAGE_READWRITE, 0, SDVX_AP_IPC_SIZE,
-                                          SDVX_AP_SHM_NAME);
-        if (g_shm_handle) {
-            g_shm = reinterpret_cast<SdvxApSharedState*>(
-                MapViewOfFile(g_shm_handle, FILE_MAP_ALL_ACCESS, 0, 0, SDVX_AP_IPC_SIZE));
-            if (g_shm) {
-                ZeroMemory(g_shm, SDVX_AP_IPC_SIZE);
-                g_shm->magic = SDVX_AP_IPC_MAGIC;
-                log("[IPC] Shared memory created: Local\\SDVX_AP_IPC_v1");
-            }
-        }
-        if (!g_shm) log("[IPC] WARNING: Failed to create shared memory");
-
-        // Start poll thread (runs even if IPC failed — it'll just do nothing)
-        g_ipc_stop_evt = CreateEventW(nullptr, TRUE, FALSE, nullptr);
-        if (g_ipc_stop_evt)
-            g_ipc_thread = CreateThread(nullptr, 0, ipc_poll_thread, nullptr, 0, nullptr);
-
-    }
+    if (g_shm) g_shm->ap_status = 1;  // hooks installed, waiting for AP connection
 
     // Wire AP client callbacks
     g_ap.on_items_received = on_ap_items;

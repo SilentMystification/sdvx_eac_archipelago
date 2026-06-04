@@ -6,34 +6,15 @@ A DLL mod for **Sound Voltex EXCEED GEAR (sv6c)** that connects the game to an [
 
 ## Requirements
 
-- **Visual Studio 2022 Build Tools** with the MSVC v143 toolset
-- **Windows SDK 10.0.26100.0**
+- **Visual Studio 2022 Build Tools** (or full VS 2022) with the **Desktop development with C++** workload
+  - Download: https://aka.ms/vs/17/release/vs_buildtools.exe
 - Sound Voltex EXCEED GEAR (sv6c) with bemanitools / dinputhook-sdvx
 
 ---
 
 ## Building
 
-### 1. Check toolchain paths
-
-Open `build.bat` and verify the following lines match your installation:
-
-```bat
-set "MSVC_VER=14.44.35207"
-set "VS_BASE=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools"
-set "WINSDK_VER=10.0.26100.0"
-set "WINSDK_BASE=C:\Program Files (x86)\Windows Kits\10"
-```
-
-If your VS Build Tools or SDK are installed elsewhere, update these four lines accordingly. The MSVC version number (`14.44.35207`) can be found by browsing to:
-
-```
-<VS_BASE>\VC\Tools\MSVC\
-```
-
-The folder name inside is your version number.
-
-### 2. Build
+`build.bat` auto-detects your Visual Studio installation via `vswhere.exe` — no path editing needed.
 
 ```bat
 build.bat
@@ -51,6 +32,7 @@ Running `build.bat` populates the `deploy\` folder with everything needed:
 deploy\
   version.dll                  ← game mod
   sdvx_ap_debug.exe            ← debug UI
+  archipelago.ini              ← edit this before launching the game
   generate-apworld.bat         ← AP world generator
   tools\
     extdrm.exe                 ← place here manually (not committed to git)
@@ -63,7 +45,7 @@ deploy\
 
 ### Game mod
 
-Drag `version.dll` and `sdvx_ap_debug.exe` from `deploy\` into the game's `modules\` folder.
+Drag the entire contents of `deploy\` into the game's `modules\` folder, then edit `archipelago.ini` and set `slot = YourName` to match your slot in the AP room.
 
 ### AP world
 
@@ -71,7 +53,7 @@ Drag `version.dll` and `sdvx_ap_debug.exe` from `deploy\` into the game's `modul
 
 Run `deploy\generate-apworld.bat` once after building, and again after each game update.
 
-Open the script and verify the game path at the top matches your installation:
+Open the script and update the game path at the top if needed:
 
 ```bat
 set "GAME_DIR=C:\Games\SOUND VOLTEX EXCEED GEAR"
@@ -93,7 +75,7 @@ C:\ProgramData\Archipelago\lib\worlds\sdvx\
 
 ## Configuration
 
-Copy `archipelago.ini.example` into the same `game\modules\` folder and rename it to `archipelago.ini`, then edit it:
+Edit `archipelago.ini` (included in `deploy\`) before launching the game:
 
 ```ini
 [Archipelago]
