@@ -28,6 +28,12 @@ jobs:
 
       # ── Release steps run on push events only (not PRs) ─────────────────────
 
+      - name: Get build time
+        if: github.event_name == 'push'
+        id: buildtime
+        run: echo "value=$(Get-Date -Format 'yyyy-MM-dd HH:mm UTC')" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
       - name: Create release archive
         if: github.event_name == 'push'
         run: |
@@ -70,6 +76,9 @@ jobs:
             **Full install** — download `sdvx-ap.zip` and extract all contents into the game's `modules\` folder, then open `archipelago.ini` and set `slot` to your Archipelago slot name.
 
             **DLL update only** — download `version.dll` and replace the existing file in your `modules\` folder.
+
+            ---
+            Built: ${{ steps.buildtime.outputs.value }}
           files: |
             sdvx-ap.zip
             version.dll
@@ -90,6 +99,9 @@ jobs:
             **Full install** — download `sdvx-ap.zip` and extract all contents into the game's `modules\` folder, then open `archipelago.ini` and set `slot` to your Archipelago slot name.
 
             **DLL update only** — download `version.dll` and replace the existing file in your `modules\` folder.
+
+            ---
+            Built: ${{ steps.buildtime.outputs.value }}
           files: |
             sdvx-ap.zip
             version.dll
@@ -123,6 +135,9 @@ jobs:
             **Full install** — download `sdvx-ap.zip` and extract all contents into the game's `modules\` folder, then open `archipelago.ini` and set `slot` to your Archipelago slot name.
 
             **DLL update only** — download `version.dll` and replace the existing file in your `modules\` folder.
+
+            ---
+            Built: ${{ steps.buildtime.outputs.value }}
           files: |
             sdvx-ap.zip
             version.dll
