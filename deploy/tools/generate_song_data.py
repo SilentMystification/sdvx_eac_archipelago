@@ -87,14 +87,15 @@ def parse_music_db(xml_path: str):
 
 
 def build_location_table(songs):
-    """Return {location_name: location_id} with collision detection."""
+    """Return ({location_name: location_id}, {location_name: diff_level}) with collision detection."""
     table = {}
+    levels = {}
     seen_names = {}
 
     for song in songs:
         mid   = song['id']
         title = song['title']
-        for diff_idx, diff_label, _level in song['diffs']:
+        for diff_idx, diff_label, level in song['diffs']:
             name = f'{title} [{diff_label}]'
             loc_id = LOCATION_BASE_ID + mid * 10 + diff_idx
 
@@ -104,11 +105,12 @@ def build_location_table(songs):
             seen_names[name] = mid
 
             table[name] = loc_id
+            levels[name] = level
 
-    return table
+    return table, levels
 
 
-def write_data_py(songs, location_table, output_path: str):
+def write_data_py(songs, location_table, location_levels, output_path: str):
     total_locs = len(location_table)
 
     def esc(s):
@@ -145,6 +147,16 @@ def write_data_py(songs, location_table, output_path: str):
     for loc_name, loc_id in location_table.items():
         lines.append(f"    '{esc(loc_name)}': {loc_id},")
 
+    lines += [
+        '}',
+        '',
+        '# Maps each location name to its chart difficulty level (1-20)',
+        'LOCATION_LEVEL: Dict[str, int] = {',
+    ]
+
+    for loc_name, level in location_levels.items():
+        lines.append(f"    '{esc(loc_name)}': {level},")
+
     lines += ['}', '']
 
     Path(output_path).write_text('\n'.join(lines), encoding='utf-8')
@@ -159,11 +171,11 @@ def main():
 
     print(f'Parsing {xml_path} ...')
     songs = parse_music_db(xml_path)
-    location_table = build_location_table(songs)
+    location_table, location_levels = build_location_table(songs)
 
     print(f'Writing {out_path} ...')
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
-    write_data_py(songs, location_table, out_path)
+    write_data_py(songs, location_table, location_levels, out_path)
 
     total_locs = len(location_table)
     print(f'Done — {len(songs)} songs, {total_locs} locations')

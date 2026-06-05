@@ -22,13 +22,14 @@ Item ID layout (ITEM_BASE_ID = 8000000):
 """
 
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Dict, List
 
 from BaseClasses import Item, ItemClassification, Location, Region
 from worlds.AutoWorld import World, WebWorld
+from worlds.generic.Rules import set_rule
 from Options import PerGameCommonOptions, Range
 
-from .data import SONGS, LOCATION_TABLE, LOCATION_BASE_ID, ITEM_BASE_ID
+from .data import LOCATION_TABLE, LOCATION_LEVEL, ITEM_BASE_ID
 
 
 # ---------------------------------------------------------------------------
@@ -178,11 +179,22 @@ class SDVXWorld(World):
     # -----------------------------------------------------------------------
 
     def set_rules(self) -> None:
-        # All song-clear locations are logically reachable from the start —
-        # the DLL enforces the physical gating in-game.
-        # TODO: add logic (e.g. require START to enter a credit) once we have
-        #       enough playtesting data to know what minimum is required.
-        pass
+        for location in self.multiworld.get_locations(self.player):
+            level = LOCATION_LEVEL.get(location.name)
+
+            def make_rule(lv: int | None):
+                def rule(state) -> bool:
+                    return (
+                        state.has("START",  self.player) and
+                        state.has("BT-A",   self.player) and
+                        state.has("BT-B",   self.player) and
+                        state.has("BT-C",   self.player) and
+                        state.has("BT-D",   self.player) and
+                        (lv is None or state.has(f"LEVEL {lv}", self.player))
+                    )
+                return rule
+
+            set_rule(location, make_rule(level))
 
     # -----------------------------------------------------------------------
     # Completion condition

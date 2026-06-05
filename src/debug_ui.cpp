@@ -128,10 +128,6 @@ static void ipc_read_state() {
     for (int i = 0; i < INPUT_COUNT; i++)
         g_btns[BTN_INPUT_BASE + i].state = (inp >> i) & 1;
     for (int i = 0; i < LEVEL_COUNT; i++)
-        g_btns[BTN_LEVEL_BASE - 100 + INPUT_COUNT + i].state = (lvl >> i) & 1;
-    // Also update the dedicated level-button array region in g_btns
-    // (level buttons start at index INPUT_COUNT in g_btns)
-    for (int i = 0; i < LEVEL_COUNT; i++)
         g_btns[INPUT_COUNT + i].state = (lvl >> i) & 1;
 }
 

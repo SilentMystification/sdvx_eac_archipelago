@@ -4,7 +4,6 @@
 #include <string>
 #include <sstream>
 #include <vector>
-#include <stdexcept>
 #include "../include/json.hpp"
 
 #pragma comment(lib, "winhttp.lib")
