@@ -352,7 +352,7 @@ static DWORD WINAPI init_thread(LPVOID) {
 
     if (g_cfg.debug_log) {
         std::string log_path = dir + g_cfg.log_path;
-        g_log.open(log_path, std::ios::app);
+        g_log.open(log_path, std::ios::trunc);
     }
 
     log("=== SDVX Archipelago DLL loaded ===");

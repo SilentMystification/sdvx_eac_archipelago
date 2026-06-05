@@ -76,6 +76,8 @@ constexpr int BM2D_GET_VEC2        = 0x1008;
 // type_id is at ctx+0x314.  Returning early (without calling the original)
 // silently blocks folder entry.  Confirmed by Ghidra decompilation (2026-05-23).
 //   ulonglong FUN_1402fdae0(longlong handler)
+// NOTE: hooks.cpp locates this function at runtime via byte-pattern scan.
+//       RVA_FOLDER_ENTER is kept as a fallback in case the pattern fails.
 constexpr uintptr_t RVA_FOLDER_ENTER   = 0x2FDAE0;
 constexpr ptrdiff_t FOLDER_HANDLER_CTX = 0x1C8;   // *(handler+0x1C8) → folder ctx ptr
 constexpr ptrdiff_t FOLDER_CTX_TYPE_ID = 0x314;   // uint32_t type_id in ctx object

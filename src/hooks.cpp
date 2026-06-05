@@ -332,17 +332,18 @@ static bool install_sdvxio_hooks() {
         return false;
     }
 
-    if (MH_CreateHook(reinterpret_cast<void*>(pfn_gpio),
+    MH_STATUS mh;
+    if ((mh = MH_CreateHook(reinterpret_cast<void*>(pfn_gpio),
                       reinterpret_cast<void*>(&hk_sdvx_io_get_input_gpio),
-                      reinterpret_cast<void**>(&orig_sdvx_gpio)) != MH_OK) {
-        diagf("[HOOK] MH_CreateHook(sdvx_io_get_input_gpio) failed");
+                      reinterpret_cast<void**>(&orig_sdvx_gpio))) != MH_OK) {
+        diagf("[HOOK] MH_CreateHook(sdvx_io_get_input_gpio) failed: %s", MH_StatusToString(mh));
         return false;
     }
 
-    if (MH_CreateHook(reinterpret_cast<void*>(pfn_spin),
+    if ((mh = MH_CreateHook(reinterpret_cast<void*>(pfn_spin),
                       reinterpret_cast<void*>(&hk_sdvx_io_get_spinner_pos),
-                      reinterpret_cast<void**>(&orig_sdvx_spinner)) != MH_OK) {
-        diagf("[HOOK] MH_CreateHook(sdvx_io_get_spinner_pos) failed");
+                      reinterpret_cast<void**>(&orig_sdvx_spinner))) != MH_OK) {
+        diagf("[HOOK] MH_CreateHook(sdvx_io_get_spinner_pos) failed: %s", MH_StatusToString(mh));
         return false;
     }
 
@@ -421,6 +422,28 @@ void hooks_set_level_unlock(uint32_t levels_mask) {
             diagf("[FOLDER]   + LEVEL %d unlocked", i + 1);
 }
 
+// ── Pattern scanner ───────────────────────────────────────────────────────────
+// All sv6c.exe hooks must resolve their target via this scanner rather than a
+// hardcoded RVA — recompilation shifts addresses, patterns survive it.
+// mask: same length as pat; 'x' = exact match, '?' = wildcard byte.
+static void* scan_pattern(const uint8_t* pat, const char* mask, size_t len) {
+    HMODULE hMod = GetModuleHandleW(nullptr);
+    auto*   dos  = reinterpret_cast<IMAGE_DOS_HEADER*>(hMod);
+    auto*   nt   = reinterpret_cast<IMAGE_NT_HEADERS*>(
+                       reinterpret_cast<uint8_t*>(hMod) + dos->e_lfanew);
+    auto*   base = reinterpret_cast<uint8_t*>(hMod);
+    size_t  size = nt->OptionalHeader.SizeOfImage;
+
+    for (size_t i = 0; i + len <= size; ++i) {
+        bool match = true;
+        for (size_t j = 0; j < len && match; ++j)
+            if (mask[j] != '?' && base[i + j] != pat[j])
+                match = false;
+        if (match) return base + i;
+    }
+    return nullptr;
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // Install / remove all hooks
 // ════════════════════════════════════════════════════════════════════════════
@@ -456,39 +479,59 @@ bool hooks_install(OnSessionResult cb_session, OnTrackClear cb_clear, OnDiagLog 
           reinterpret_cast<void*>(orig_prop_destroy));
 
     // ── Initialise MinHook ────────────────────────────────────────────────────
-    if (MH_Initialize() != MH_OK) {
-        diagf("[HOOK] MH_Initialize failed");
+    MH_STATUS mh;
+    if ((mh = MH_Initialize()) != MH_OK) {
+        diagf("[HOOK] MH_Initialize failed: %s", MH_StatusToString(mh));
         return false;
     }
 
     // ── Hook avs2::property_destroy ───────────────────────────────────────────
-    if (MH_CreateHook(
+    if ((mh = MH_CreateHook(
             reinterpret_cast<void*>(orig_prop_destroy),
             reinterpret_cast<void*>(&hk_property_destroy),
-            reinterpret_cast<void**>(&orig_prop_destroy)) != MH_OK) {
-        diagf("[HOOK] MH_CreateHook(property_destroy) failed");
+            reinterpret_cast<void**>(&orig_prop_destroy))) != MH_OK) {
+        diagf("[HOOK] MH_CreateHook(property_destroy) failed: %s", MH_StatusToString(mh));
         return false;
     }
 
     // ── Hook sdvxio.dll input functions (optional, non-fatal) ─────────────────
     install_sdvxio_hooks();
 
-    // ── Hook sv6c.exe folder entry function ───────────────────────────────────
+    // ── Hook sv6c.exe folder entry function (pattern scan) ───────────────────
+    // Pattern: prologue of FUN_1402fdae0 with struct field offsets wildcarded.
+    // Derived from sv6c.exe 2026-05-20 via Ghidra; offsets at bytes 11-14,
+    // 20-23, 26-29 are wildcarded so the scan survives recompilation.
     {
-        uintptr_t base   = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
-        void*     target = reinterpret_cast<void*>(base + RVA_FOLDER_ENTER);
-        if (MH_CreateHook(target,
+        static const uint8_t pat[] = {
+            0x40, 0x53, 0x56, 0x57, 0x48, 0x83, 0xEC, 0x40,  // push rbx; push rsi; push rdi; sub rsp,40h
+            0x48, 0x8B, 0x81, 0x00, 0x00, 0x00, 0x00,          // mov rax,[rcx+????]
+            0x48, 0x8B, 0xF1,                                   // mov rsi,rcx
+            0x8B, 0xB8, 0x00, 0x00, 0x00, 0x00,                // mov edi,[rax+????]
+            0x8B, 0x98, 0x00, 0x00, 0x00, 0x00                 // mov ebx,[rax+????]
+        };
+        static const char mask[] = "xxxxxxxxxxx????xxxxx????xx????";
+
+        void* target = scan_pattern(pat, mask, sizeof(pat));
+        if (target) {
+            diagf("[HOOK] FolderEnter found by pattern scan @ %p", target);
+        } else {
+            diagf("[HOOK] FolderEnter pattern not found — falling back to RVA 0x%zX", RVA_FOLDER_ENTER);
+            target = reinterpret_cast<void*>(RVA(RVA_FOLDER_ENTER));
+        }
+
+        if ((mh = MH_CreateHook(target,
                           reinterpret_cast<void*>(&hk_folder_enter),
-                          reinterpret_cast<void**>(&orig_folder_enter)) != MH_OK) {
-            diagf("[HOOK] MH_CreateHook(folder_enter) failed");
+                          reinterpret_cast<void**>(&orig_folder_enter))) != MH_OK) {
+            diagf("[HOOK] MH_CreateHook(folder_enter) failed: %s (target=%p)",
+                  MH_StatusToString(mh), target);
             return false;
         }
         diagf("[HOOK] Folder entry hook installed — LEVEL folders locked until AP items arrive");
     }
 
     // ── Enable all hooks ──────────────────────────────────────────────────────
-    if (MH_EnableHook(MH_ALL_HOOKS) != MH_OK) {
-        diagf("[HOOK] MH_EnableHook failed");
+    if ((mh = MH_EnableHook(MH_ALL_HOOKS)) != MH_OK) {
+        diagf("[HOOK] MH_EnableHook failed: %s", MH_StatusToString(mh));
         return false;
     }
 

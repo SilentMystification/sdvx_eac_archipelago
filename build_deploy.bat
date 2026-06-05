@@ -23,6 +23,7 @@ echo === Deploy SUCCESS ===
 echo %DEPLOY_DIR%\version.dll
 echo %DEPLOY_DIR%\sdvx_ap_debug.exe
 echo.
+timeout /t 5 /nobreak >nul
 exit /b 0
 
 :no_dir
@@ -36,4 +37,6 @@ goto fail
 :fail
 echo.
 echo === Build/Deploy FAILED ===
+echo.
+timeout /t 5 /nobreak >nul
 exit /b 1

@@ -73,14 +73,15 @@ jobs:
           body: |
             ## Installation
 
-            **Full install** — download `_sdvx-archipelago-latest.zip` and extract all contents into the game's `modules\` folder, then open `archipelago.ini` and set `slot` to your Archipelago slot name.
+            **Full install** — download `archipelago-latest.zip` and extract all contents into the game's `modules\` folder, then open `archipelago.ini` and configure your archipelago server settings.
+            You may use the default configuration for the SDVX AP or configure additional parameters in here as well. 
 
             **DLL update only** — download `version.dll` and replace the existing file in your `modules\` folder.
 
             ---
             Built: ${{ steps.buildtime.outputs.value }}
           files: |
-            _sdvx-archipelago-latest.zip
+            archipelago-latest.zip
             version.dll
             sdvx_ap_debug.exe
             archipelago.ini
