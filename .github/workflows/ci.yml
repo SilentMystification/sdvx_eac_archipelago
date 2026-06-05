@@ -44,7 +44,7 @@ jobs:
           Copy-Item deploy/generate-apworld.bat generate-apworld.bat
         shell: pwsh
 
-      # Main branch — versioned full release + update latest
+      # Main branch — versioned full release
 
       - name: Get next version
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -86,25 +86,7 @@ jobs:
             archipelago.ini
             generate-apworld.bat
           generate_release_notes: true
-
-      - name: Update latest release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: |
-          @"
-          ## Installation
-
-          **Full install** — download ``_sdvx-archipelago-latest.zip`` and extract all contents into the game's ``modules\`` folder, then open ``archipelago.ini`` and set ``slot`` to your Archipelago slot name.
-
-          **DLL update only** — download ``version.dll`` and replace the existing file in your ``modules\`` folder.
-
-          Built: ${{ steps.buildtime.outputs.value }}
-          "@ | Set-Content release-notes.md
-          gh release delete latest --yes --cleanup-tag 2>$null; $true
-          gh release create latest --prerelease --title "Latest" --notes-file release-notes.md `
-            _sdvx-archipelago-latest.zip version.dll sdvx_ap_debug.exe archipelago.ini generate-apworld.bat
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
+          make_latest: true
 
       # Non-main branches — pre-release tagged <branch>-<sha>
 
