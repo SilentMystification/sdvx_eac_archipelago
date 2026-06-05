@@ -6,6 +6,7 @@
 #include <atomic>
 #include <mutex>
 #include <queue>
+#include <unordered_map>
 #include <windows.h>
 #include <winhttp.h>
 
@@ -24,7 +25,8 @@ struct APItem {
 using OnItemsReceived = std::function<void(const std::vector<APItem>&)>;
 using OnGoalAchieved  = std::function<void()>;
 using OnPrintMessage  = std::function<void(const std::string&)>;
-using OnConnected     = std::function<void(int slot, const std::string& slot_name)>;
+using OnConnected     = std::function<void(int slot, const std::string& slot_name,
+                            const std::unordered_map<std::string, int>& slot_data)>;
 
 // ---- Client status enum (mirrors AP ClientStatus) --------------------------
 enum class APClientStatus : int {

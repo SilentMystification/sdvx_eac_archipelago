@@ -28,7 +28,9 @@ Config Config::load(const std::string& ini_path) {
 
     c.location_base_id = static_cast<int64_t>(GetIniInt("Game", "location_base_id", 8100000, p));
     c.item_base_id     = static_cast<int64_t>(GetIniInt("Game", "item_base_id",     8000000, p));
-    c.goal_clears      = GetIniInt("Game", "goal_clears", 30, p);
+    c.goal_clears      = GetIniInt("Game", "goal_clears",      30, p);
+    c.goal_mode        = GetIniInt("Game", "goal_mode",         0, p);
+    c.goal_song_count  = GetIniInt("Game", "goal_song_count",   5, p);
 
     c.debug_log     = GetIniInt("Debug", "enabled", 0, p) != 0;
     c.log_path      = GetIniString("Debug", "log_path", "sdvx_ap.log", p);

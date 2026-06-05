@@ -141,7 +141,7 @@ static int32_t hk_property_destroy(void* prop) {
         if (music_id != 0) {
             bool cleared = (clear_type >= CLEAR_ANY);
             if (cleared && g_on_clear)
-                g_on_clear(music_id, music_type);
+                g_on_clear(music_id, music_type, clear_type);
             if (g_on_session) {
                 TrackResult tr{};
                 tr.music_id   = music_id;

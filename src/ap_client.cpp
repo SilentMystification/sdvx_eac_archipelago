@@ -204,7 +204,15 @@ void APClient::handle_message(const std::string& text) {
             slot_id_ = pkt.value("slot", -1);
             std::string sname = slot_;
             connected_.store(true);
-            if (on_connected) on_connected(slot_id_, sname);
+
+            std::unordered_map<std::string, int> sd;
+            if (pkt.contains("slot_data") && pkt["slot_data"].is_object()) {
+                for (auto& [k, v] : pkt["slot_data"].items())
+                    if (v.is_number_integer())
+                        sd[k] = v.get<int>();
+            }
+
+            if (on_connected) on_connected(slot_id_, sname, sd);
             // Catch up on any items we may have missed
             if (pkt.contains("checked_locations")) {
                 // checked_locations contains location IDs already done — skip re-sending

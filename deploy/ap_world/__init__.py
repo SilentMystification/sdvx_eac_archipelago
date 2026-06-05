@@ -4,11 +4,14 @@ Sound Voltex Archipelago World
 Items  : 9 input-unlock items (BT-A/B/C/D, FX-L/R, START, Knob LEFT, Knob RIGHT).
          20 level-folder unlock items (LEVEL 1 … LEVEL 20) — each one reveals
          the matching LEVEL difficulty-range folder in the song-select screen.
-         The rest of the item pool is filled with "Song Clear" filler items.
+         5 clear type items (Clear, Hard Clear, Maxxive Clear, UC, PUC) — filler
+         used to count progress toward the goal.
+         1 Goal Song item (progression, placed only in goal_songs mode).
 Locations: Every charted difficulty for every song in music_db (6 302 in the
            bundled dataset; re-run tools/generate_song_data.py when new songs
            are added to the game).
-Goal   : Accumulate <goal_clears> "Song Clear" items.
+Goal   : song_clears — accumulate goal_clears clear-type items.
+         goal_songs  — collect goal_song_count Goal Song items.
 
 The companion DLL (version.dll in the game's modules folder) physically locks
 buttons/knobs and hides LEVEL folders until the matching AP items are received.
@@ -17,8 +20,13 @@ server.
 
 Item ID layout (ITEM_BASE_ID = 8000000):
   +0  .. +8   : BT-A/B/C/D, FX-L/R, START, Knob LEFT, Knob RIGHT
-  +9          : Song Clear  (filler)
-  +10 .. +29  : LEVEL 1 … LEVEL 20  (one per difficulty-range folder)
+  +20         : Clear
+  +21         : Hard Clear
+  +22         : Maxxive Clear
+  +23         : UC
+  +24         : PUC
+  +50         : Goal Song  (progression, goal_songs mode only)
+  +101 .. +120: LEVEL 1 … LEVEL 20  (one per difficulty-range folder)
 """
 
 from dataclasses import dataclass
@@ -27,7 +35,7 @@ from typing import Dict, List
 from BaseClasses import Item, ItemClassification, Location, Region
 from worlds.AutoWorld import World, WebWorld
 from worlds.generic.Rules import set_rule
-from Options import PerGameCommonOptions, Range
+from Options import PerGameCommonOptions, Range, Choice
 
 from .data import LOCATION_TABLE, LOCATION_LEVEL, ITEM_BASE_ID
 
@@ -36,17 +44,35 @@ from .data import LOCATION_TABLE, LOCATION_LEVEL, ITEM_BASE_ID
 # Options
 # ---------------------------------------------------------------------------
 
+class GoalMode(Choice):
+    """Win condition: collect clear-type items (song_clears) or Goal Song items (goal_songs)."""
+    display_name = "Goal Mode"
+    option_song_clears = 0
+    option_goal_songs  = 1
+    default = 0
+
+
 class GoalClears(Range):
-    """Number of 'Song Clear' items to collect to finish the game."""
+    """Number of clear-type items to collect to finish the game (song_clears mode)."""
     display_name = "Goal Clears"
     range_start  = 1
     range_end    = 500
     default      = 30
 
 
+class GoalSongCount(Range):
+    """Number of Goal Song items to collect to finish the game (goal_songs mode)."""
+    display_name = "Goal Song Count"
+    range_start  = 1
+    range_end    = 20
+    default      = 5
+
+
 @dataclass
 class SDVXOptions(PerGameCommonOptions):
-    goal_clears: GoalClears
+    goal_mode:       GoalMode
+    goal_song_count: GoalSongCount
+    goal_clears:     GoalClears
 
 
 # ---------------------------------------------------------------------------
@@ -60,26 +86,39 @@ INPUT_ITEMS: List[str] = [
     "START",
     "Knob LEFT", "Knob RIGHT",
 ]
-FILLER_ITEM = "Song Clear"
+
+# 5 clear type items — filler used to count progress toward the song_clears goal.
+# Ordered from easiest to hardest to match the sv6_save_m clear_type values.
+CLEAR_ITEMS: List[str] = [
+    "Clear",          # +20  8000020  (clear_type 2: Effective Rate)
+    "Hard Clear",     # +21  8000021  (clear_type 3: Excessive Rate)
+    "Maxxive Clear",  # +22  8000022  (clear_type 6)
+    "UC",             # +23  8000023  (clear_type 4)
+    "PUC",            # +24  8000024  (clear_type 5)
+]
+FILLER_ITEM = CLEAR_ITEMS[0]  # "Clear" — used to pad the item pool
+
+GOAL_SONG_ITEM = "Goal Song"  # +50  8000050
 
 # Level-folder unlock items: LEVEL 1 … LEVEL 20.
 # Each reveals the corresponding LEVEL difficulty-range folder in song-select.
 # The DLL hides all LEVEL folders by default and reveals them as these items
-# are received (rel offset 10–29 from ITEM_BASE_ID).
+# are received (rel offset 101–120 from ITEM_BASE_ID).
 LEVEL_ITEMS: List[str] = [f"LEVEL {n}" for n in range(1, 21)]
 
 # Build item name→ID mapping:
-#   input items        : ITEM_BASE_ID + 0..8   (8000000–8000008)
-#   Song Clear         : ITEM_BASE_ID + 9       (8000009)
-#   LEVEL 1 .. LEVEL 20: ITEM_BASE_ID + 10..29  (8000010–8000029)
-#   (additional items can use ITEM_BASE_ID + 30 and above)
-# Locations start at 8100000 (LOCATION_BASE_ID), so there is no overlap.
+#   input items        : ITEM_BASE_ID + 0..8     (8000000–8000008)
+#   clear type items   : ITEM_BASE_ID + 20..24   (8000020–8000024)
+#   Goal Song          : ITEM_BASE_ID + 50        (8000050)
+#   LEVEL 1 .. LEVEL 20: ITEM_BASE_ID + 101..120  (8000101–8000120)
 _ITEM_NAME_TO_ID: Dict[str, int] = {
     name: ITEM_BASE_ID + i for i, name in enumerate(INPUT_ITEMS)
 }
-_ITEM_NAME_TO_ID[FILLER_ITEM] = ITEM_BASE_ID + len(INPUT_ITEMS)  # +9
+for _i, _name in enumerate(CLEAR_ITEMS):
+    _ITEM_NAME_TO_ID[_name] = ITEM_BASE_ID + 20 + _i
+_ITEM_NAME_TO_ID[GOAL_SONG_ITEM] = ITEM_BASE_ID + 50
 for _i, _name in enumerate(LEVEL_ITEMS):
-    _ITEM_NAME_TO_ID[_name] = ITEM_BASE_ID + len(INPUT_ITEMS) + 1 + _i  # +10..+29
+    _ITEM_NAME_TO_ID[_name] = ITEM_BASE_ID + 101 + _i
 
 
 class SDVXItem(Item):
@@ -141,16 +180,16 @@ class SDVXWorld(World):
         """Create a single item by name.  Called by AP internals as well as
         our own create_items (start inventory, item links, plando, etc.)."""
         if name in INPUT_ITEMS:
-            # Physical button/knob unlock — hard progression gating.
             classification = ItemClassification.progression
         elif name in LEVEL_ITEMS:
             # Level-folder unlock — reveals a difficulty range in song-select.
-            # Marked progression so the fill algorithm places them accessibly.
             classification = ItemClassification.progression
-        elif name == FILLER_ITEM:
-            # progression_skip_balancing: tracked by state.has() for the goal
+        elif name in CLEAR_ITEMS:
+            # progression_skip_balancing: tracked by state.count() for the goal
             # condition but not sphere-balanced, which keeps fill fast.
             classification = ItemClassification.progression_skip_balancing
+        elif name == GOAL_SONG_ITEM:
+            classification = ItemClassification.progression
         else:
             raise KeyError(f"Unknown Sound Voltex item: {name!r}")
         return SDVXItem(name, classification, self.item_name_to_id[name], self.player)
@@ -167,7 +206,12 @@ class SDVXWorld(World):
         # 20 level-folder unlock items (LEVEL 1 … LEVEL 20)
         items += [self.create_item(name) for name in LEVEL_ITEMS]
 
-        # Pad the rest of the pool with Song Clear items (one per remaining slot)
+        # In goal_songs mode, add the required Goal Song progression items
+        if self.options.goal_mode == GoalMode.option_goal_songs:
+            for _ in range(self.options.goal_song_count.value):
+                items.append(self.create_item(GOAL_SONG_ITEM))
+
+        # Pad the rest of the pool with Clear items (one per remaining slot)
         num_locations = len(self.location_name_to_id)
         while len(items) < num_locations:
             items.append(self.create_item(FILLER_ITEM))
@@ -201,7 +245,26 @@ class SDVXWorld(World):
     # -----------------------------------------------------------------------
 
     def generate_basic(self) -> None:
-        goal = self.options.goal_clears.value
-        self.multiworld.completion_condition[self.player] = (
-            lambda state, g=goal: state.has(FILLER_ITEM, self.player, g)
-        )
+        if self.options.goal_mode == GoalMode.option_goal_songs:
+            count = self.options.goal_song_count.value
+            self.multiworld.completion_condition[self.player] = (
+                lambda state, c=count: state.has(GOAL_SONG_ITEM, self.player, c)
+            )
+        else:
+            goal = self.options.goal_clears.value
+            self.multiworld.completion_condition[self.player] = (
+                lambda state, g=goal: sum(
+                    state.count(n, self.player) for n in CLEAR_ITEMS
+                ) >= g
+            )
+
+    # -----------------------------------------------------------------------
+    # Slot data
+    # -----------------------------------------------------------------------
+
+    def fill_slot_data(self) -> dict:
+        return {
+            "goal_mode":       self.options.goal_mode.value,
+            "goal_clears":     self.options.goal_clears.value,
+            "goal_song_count": self.options.goal_song_count.value,
+        }

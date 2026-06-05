@@ -42,8 +42,9 @@ static constexpr uint8_t SDVX_SPINNER_ALL = SDVX_SPINNER_L | SDVX_SPINNER_R;
 using OnSessionResult = std::function<void(const TrackResult tracks[], int count)>;
 
 // Callback fired when a track clear is detected (clear_type >= EFFECTIVE).
-// music_id / difficulty come directly from the network packet.
-using OnTrackClear = std::function<void(uint32_t music_id, uint32_t difficulty)>;
+// music_id / difficulty / clear_type come directly from the network packet.
+// clear_type: 2=EFFECTIVE 3=EXCESSIVE 4=UC 5=PUC 6=MAXXIVE
+using OnTrackClear = std::function<void(uint32_t music_id, uint32_t difficulty, uint32_t clear_type)>;
 
 // Diagnostic log callback — routes hooks.cpp output to the main log file.
 using OnDiagLog = std::function<void(const std::string& msg)>;

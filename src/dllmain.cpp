@@ -26,17 +26,24 @@ static APClient  g_ap;
 static std::mutex             g_cleared_mutex;
 static std::set<APLocationID> g_cleared_locations; // already sent this session
 static int                    g_total_clears = 0;
+static int                    g_goal_songs   = 0;
 static bool                   g_goal_sent    = false;
 
 static std::ofstream g_log;
 static std::mutex    g_log_mutex;
 
+// ── AP item ID offsets (relative to item_base_id) ────────────────────────────
+constexpr int INPUT_ITEM_BASE   = 0;   constexpr int INPUT_ITEM_COUNT   = 9;
+constexpr int CLEAR_ITEM_BASE   = 20;  constexpr int CLEAR_ITEM_COUNT   = 5;
+constexpr int GOAL_SONG_REL     = 50;
+constexpr int LEVEL_ITEM_BASE   = 101; constexpr int LEVEL_ITEM_COUNT   = 20;
+
 // ── Input unlock state ────────────────────────────────────────────────────────
-// Input items are encoded as: item_id = item_base_id + slot  (slots 0–8).
-// Slots 0-6 = BT-A…START (GPIO0/1 bits), slots 7-8 = Knob L / Knob R.
-// "Song Clear" filler = item_base_id + 9.
-// Location IDs start at item_base_id + 10 (= base + music_id*10 + diff),
-// so there is no overlap between item IDs and location IDs.
+// Input items: item_base_id + 0..8 (BT-A…START, Knob L/R).
+// Clear type items: item_base_id + 20..24 (Clear, Hard Clear, Maxxive Clear, UC, PUC).
+// Goal Song: item_base_id + 50.
+// Level folder items: item_base_id + 101..120 (LEVEL 1–20).
+// Location IDs: location_base_id + music_id*10 + difficulty — no overlap with items.
 
 enum InputSlot : int {
     INPUT_BT_A   = 0,
@@ -174,11 +181,19 @@ static APLocationID make_location_id(uint32_t music_id, uint32_t difficulty) {
 // ============================================================
 
 // Called by hooks.cpp when a cleared sv6_save_m packet is intercepted.
-static void on_track_clear(uint32_t music_id, uint32_t difficulty) {
+static void on_track_clear(uint32_t music_id, uint32_t difficulty, uint32_t clear_type) {
     if (music_id == 0) {
         log("[HOOK] track clear fired but music_id=0");
         return;
     }
+
+    static const struct { uint32_t ct; const char* name; } k_clear_map[] = {
+        { 2, "Clear" }, { 3, "Hard Clear" }, { 6, "Maxxive Clear" },
+        { 4, "UC" }, { 5, "PUC" },
+    };
+    const char* clear_name = "Unknown";
+    for (auto& e : k_clear_map)
+        if (e.ct == clear_type) { clear_name = e.name; break; }
 
     APLocationID loc_id = make_location_id(music_id, difficulty);
 
@@ -190,18 +205,11 @@ static void on_track_clear(uint32_t music_id, uint32_t difficulty) {
 
     log("[AP] Track cleared: music_id=" + std::to_string(music_id) +
         " diff=" + std::to_string(difficulty) +
+        " clear=" + clear_name +
         " location_id=" + std::to_string(loc_id));
 
     if (g_ap.is_connected()) {
         g_ap.send_location_checks({loc_id});
-        g_total_clears++;
-        log("[AP] Total clears: " + std::to_string(g_total_clears));
-
-        if (!g_goal_sent && g_total_clears >= g_cfg.goal_clears) {
-            g_goal_sent = true;
-            g_ap.send_goal();
-            log("[AP] GOAL SENT!");
-        }
     } else {
         log("[AP] Not connected — location check queued for reconnect");
     }
@@ -238,9 +246,9 @@ static void on_ap_items(const std::vector<APItem>& items) {
         APItemID rel = it.item - g_cfg.item_base_id;
         if (rel < 0) continue;
 
-        // ── Input unlock items (item_base_id + 0..8) ─────────────────────────
-        if (rel < INPUT_COUNT) {
-            const char* names[INPUT_COUNT] = {
+        // ── Input unlock items: rel 0–8 ───────────────────────────────────────
+        if (rel >= INPUT_ITEM_BASE && rel < INPUT_ITEM_BASE + INPUT_ITEM_COUNT) {
+            const char* names[INPUT_ITEM_COUNT] = {
                 "BT-A","BT-B","BT-C","BT-D","FX-L","FX-R","START",
                 "Knob LEFT","Knob RIGHT"
             };
@@ -262,40 +270,54 @@ static void on_ap_items(const std::vector<APItem>& items) {
             continue;
         }
 
-        // ── Song Clear filler (item_base_id + 9) ─────────────────────────────
-        // The AP world places these as the goal-counter items.  Count them and
-        // fire a goal StatusUpdate once the threshold is reached.
-        if (rel == INPUT_COUNT) {
+        // ── Clear type items: rel 20–24 ───────────────────────────────────────
+        if (rel >= CLEAR_ITEM_BASE && rel < CLEAR_ITEM_BASE + CLEAR_ITEM_COUNT) {
+            static const char* clear_names[CLEAR_ITEM_COUNT] = {
+                "Clear", "Hard Clear", "Maxxive Clear", "UC", "PUC"
+            };
             ++g_total_clears;
-            log("[AP] Song Clear received (" +
+            log("[AP] " + std::string(clear_names[rel - CLEAR_ITEM_BASE]) + " received (" +
                 std::to_string(g_total_clears) + " / " +
                 std::to_string(g_cfg.goal_clears) + ")");
-            if (!g_goal_sent && g_total_clears >= g_cfg.goal_clears) {
+            if (!g_goal_sent && g_cfg.goal_mode == 0 &&
+                g_total_clears >= g_cfg.goal_clears) {
                 g_goal_sent = true;
                 g_ap.send_goal();
-                log("[AP] Goal reached!");
+                log("[AP] Goal reached (song_clears)!");
             }
             continue;
         }
 
-        // ── Level-folder unlock items (item_base_id + 10..29) ────────────────
-        // rel 10 = LEVEL 1, rel 11 = LEVEL 2, ... rel 29 = LEVEL 20.
-        // Each item unblocks entry to the matching LEVEL folder via the hook on
-        // FUN_1400f6ad0 (RVA_FOLDER_ENTER) installed in hooks.cpp.
-        constexpr int LEVEL_ITEM_BASE  = INPUT_COUNT + 1;   // = 10
-        constexpr int LEVEL_ITEM_COUNT = 20;                // one per level
-        int level_rel = static_cast<int>(rel) - LEVEL_ITEM_BASE;
-        if (level_rel >= 0 && level_rel < LEVEL_ITEM_COUNT) {
-            int      level = level_rel + 1;
-            uint32_t bit   = 1u << level_rel;
-            if (!(g_levels_unlocked_local & bit)) {
-                g_levels_unlocked_local |= bit;
-                log("[AP] Level unlock: LEVEL " + std::to_string(level) +
-                    " (item_id=" + std::to_string(it.item) + ")");
-                hooks_set_level_unlock(g_levels_unlocked_local);
-                ipc_write_dll_state();
+        // ── Goal Song: rel 50 ─────────────────────────────────────────────────
+        if (rel == GOAL_SONG_REL) {
+            ++g_goal_songs;
+            log("[AP] Goal Song received (" +
+                std::to_string(g_goal_songs) + " / " +
+                std::to_string(g_cfg.goal_song_count) + ")");
+            if (!g_goal_sent && g_cfg.goal_mode == 1 &&
+                g_goal_songs >= g_cfg.goal_song_count) {
+                g_goal_sent = true;
+                g_ap.send_goal();
+                log("[AP] Goal reached (goal_songs)!");
             }
             continue;
+        }
+
+        // ── Level-folder unlock items: rel 101–120 ────────────────────────────
+        {
+            int level_rel = static_cast<int>(rel) - LEVEL_ITEM_BASE;
+            if (level_rel >= 0 && level_rel < LEVEL_ITEM_COUNT) {
+                int      level = level_rel + 1;
+                uint32_t bit   = 1u << level_rel;
+                if (!(g_levels_unlocked_local & bit)) {
+                    g_levels_unlocked_local |= bit;
+                    log("[AP] Level unlock: LEVEL " + std::to_string(level) +
+                        " (item_id=" + std::to_string(it.item) + ")");
+                    hooks_set_level_unlock(g_levels_unlocked_local);
+                    ipc_write_dll_state();
+                }
+                continue;
+            }
         }
 
         // ── Unknown/future items ──────────────────────────────────────────────
@@ -311,8 +333,23 @@ static void on_ap_print(const std::string& msg) {
     log("[AP MSG] " + msg);
 }
 
-static void on_ap_connected(int slot, const std::string& name) {
+static void on_ap_connected(int slot, const std::string& name,
+                             const std::unordered_map<std::string, int>& slot_data) {
     log("[AP] Connected as slot " + std::to_string(slot) + " (" + name + ")");
+
+    auto apply = [&](const char* key, int& cfg_field) {
+        auto it = slot_data.find(key);
+        if (it == slot_data.end()) return;
+        if (it->second != cfg_field)
+            log(std::string("[AP] Slot data override: ") + key +
+                " ini=" + std::to_string(cfg_field) +
+                " -> server=" + std::to_string(it->second));
+        cfg_field = it->second;
+    };
+    apply("goal_mode",       g_cfg.goal_mode);
+    apply("goal_clears",     g_cfg.goal_clears);
+    apply("goal_song_count", g_cfg.goal_song_count);
+
     if (g_shm) g_shm->ap_status = 2;
 
     // Re-send cleared locations

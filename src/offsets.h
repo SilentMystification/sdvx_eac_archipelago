@@ -5,7 +5,7 @@
 // ============================================================
 // sv6c.exe offsets — version: SDVX Exceed Gear (Konasute)
 // Image base: 0x140000000
-// File date:  2026-05-20 (Ghidra creation date)
+// File date:  2026-06-05
 // ============================================================
 
 // RVA helper: adds offset to the runtime base of sv6c.exe
@@ -78,7 +78,7 @@ constexpr int BM2D_GET_VEC2        = 0x1008;
 //   ulonglong FUN_1402fdae0(longlong handler)
 // NOTE: hooks.cpp locates this function at runtime via byte-pattern scan.
 //       RVA_FOLDER_ENTER is kept as a fallback in case the pattern fails.
-constexpr uintptr_t RVA_FOLDER_ENTER   = 0x2FDAE0;
+constexpr uintptr_t RVA_FOLDER_ENTER   = 0x302260;  // updated 2026-06-05 (was 0x2FDAE0)
 constexpr ptrdiff_t FOLDER_HANDLER_CTX = 0x1C8;   // *(handler+0x1C8) → folder ctx ptr
 constexpr ptrdiff_t FOLDER_CTX_TYPE_ID = 0x314;   // uint32_t type_id in ctx object
 //

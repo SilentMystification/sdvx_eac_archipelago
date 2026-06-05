@@ -16,8 +16,10 @@ struct Config {
     int64_t location_base_id = 8100000;   // locations: base + music_id*10 + diff
     int64_t item_base_id     = 8000000;   // items:     base + 0..99999
 
-    // Goal: how many clears are needed to win
+    // Goal: how many clears are needed to win (song_clears mode)
     int     goal_clears      = 30;
+    int     goal_mode        = 0;   // 0 = song_clears, 1 = goal_songs
+    int     goal_song_count  = 5;
 
     // Logging
     bool    debug_log        = false;
