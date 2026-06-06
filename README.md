@@ -57,12 +57,13 @@ C:\ProgramData\Archipelago\lib\worlds\sdvx\
 
 ## Configuration
 
-`archipelago.ini` is included in `deploy\` and gets copied into the game's `modules\` folder alongside the DLL. Open it there and set at minimum:
+See [ap_config.md](ap_config.md) for the full `archipelago.ini` reference, goal mode documentation, and item/location ID tables.
+
+At minimum, open `archipelago.ini` in the game's `modules\` folder and set:
 
 - **`slot`** — your player slot name, must match exactly what was used when generating the AP seed
 - **`host` / `port`** — your Archipelago server address (defaults point to archipelago.gg)
 - **`password`** — leave blank if the room has no password
-- **`goal_clears`** — number of song clears required to finish (default 30)
 
 Enable `[Debug] enabled = 1` to write a log file next to the DLL if you need to troubleshoot.
 
@@ -76,16 +77,6 @@ Enable `[Debug] enabled = 1` to write a log file next to the DLL if you need to 
 - The AP client connects over WebSocket and handles item/location sync in a background thread.
 
 ---
-
-## Item layout
-
-| Item | Description |
-|------|-------------|
-| BT-A, BT-B, BT-C, BT-D | Individual BT buttons |
-| FX-L, FX-R | FX buttons |
-| START | Start button |
-| Knob LEFT, Knob RIGHT | Analog knobs |
-| Song unlocks | Individual songs/difficulties (future) |
 
 ---
 

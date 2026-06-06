@@ -7,7 +7,18 @@ name: YourName   # must match the slot= value in archipelago.ini
 game: Sound Voltex
 
 Sound Voltex:
-  # How many "Song Clear" items you need to collect to finish.
-  # Each song chart you clear sends one location check, which may give you
-  # a "Song Clear" item (or an item for another player in a multiworld).
+  # Win condition mode.
+  #   song_clears — accumulate goal_clears clear-type items (one per song cleared)
+  #   goal_songs  — collect goal_song_count Goal Song progression items
+  goal_mode: song_clears
+
+  # (song_clears mode) Number of clear-type items required to win.
   goal_clears: 30
+
+  # (goal_songs mode) Number of Goal Song items required to win.
+  goal_song_count: 5
+
+  # (goal_songs mode) Minimum level folder Goal Song items are placed behind.
+  # 0 = no restriction (items can appear anywhere in the multiworld).
+  # 1-20 = items are only placed at locations requiring at least that LEVEL folder.
+  goal_level: 0
